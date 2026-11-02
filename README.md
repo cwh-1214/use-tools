@@ -6,6 +6,14 @@
 - 加一个工具 = 加一个文件夹 + 一行 import，改完刷新窗口即生效
 - 删一个工具 = 删文件夹 + 删那行 import，不留任何残留
 
+## 下载
+
+不想装工具链就直接下绿色版：[Releases](https://github.com/cwh-1214/use-tools/releases/latest) 里的 `use-tools-0.1.0.exe`，单文件 3.85 MB，双击即用。
+
+- 系统要求：Windows 10/11（用系统自带的 WebView2 运行时，Win11 已内置，Win10 若缺会自动提示安装）
+- 免安装、不写注册表；设置与窗口位置存在 `%APPDATA%\com.usertools.desktop\settings.json`
+- 装到开始菜单/可卸载的版本需要 NSIS 打包（`npm run tauri:build`），当前只发布绿色版
+
 ## 运行
 
 ```bash

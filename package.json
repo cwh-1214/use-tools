@@ -24,12 +24,20 @@
     "tauri"
   ],
   "license": "MIT",
+  "author": "cwh",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cwh-1214/use-tools.git"
+  },
+  "homepage": "https://github.com/cwh-1214/use-tools#readme",
+  "bugs": {
+    "url": "https://github.com/cwh-1214/use-tools/issues"
+  },
   "devDependencies": {
     "@tauri-apps/cli": "^2",
     "electron": "^45.0.0",
     "electron-builder": "^26.18.0"
   },
-  "author": "use-tools",
   "build": {
     "appId": "com.usertools.desktop",
     "productName": "工具集",
