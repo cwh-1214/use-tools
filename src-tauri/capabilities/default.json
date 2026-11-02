@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "主窗口所需的最小权限：只开事件监听，其余能力都走自定义命令",
+  "windows": ["main"],
+  "permissions": ["core:default", "core:event:default"]
+}

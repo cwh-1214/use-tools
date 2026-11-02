@@ -1,0 +1,1007 @@
+/* 外壳布局 + 工具通用组件类。
+   工具自己写样式时优先复用这里的 .btn / .field / .textarea，
+   确实需要专属样式再单独加 css 文件。 */
+
+.app {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) 1fr;
+  height: 100vh;
+}
+
+/* ---------------- 侧边栏 ---------------- */
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  /* 顶部略亮、底部略暗的微弱渐变，比纯色更有层次 */
+  background: linear-gradient(180deg, var(--panel-soft), var(--bg));
+  border-right: 1px solid var(--line);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 17px 16px 13px;
+}
+
+.brand-mark {
+  flex: none;
+  width: 31px;
+  height: 31px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 14.5px;
+  color: #fff;
+  background: linear-gradient(140deg, #5c86fd, #3457d5);
+  box-shadow: 0 2px 6px rgba(52, 87, 213, 0.35);
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+  min-width: 0;
+}
+
+.brand-text strong {
+  font-size: 14.5px;
+  letter-spacing: 0.2px;
+}
+
+.brand-text span {
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+
+.search-wrap {
+  padding: 0 12px 12px;
+}
+
+.search {
+  width: 100%;
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  font-size: 13.5px;
+  outline: none;
+  box-shadow: var(--shadow-xs);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.search::placeholder {
+  color: var(--text-3);
+}
+
+.search:focus {
+  border-color: var(--accent);
+  box-shadow: var(--ring);
+}
+
+.tool-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 10px 12px;
+}
+
+.group-label {
+  padding: 14px 10px 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  color: var(--text-3);
+  text-transform: uppercase;
+  user-select: none;
+}
+
+.tool-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  margin-bottom: 2px;
+  border-radius: var(--radius-sm);
+  text-align: left;
+  font-size: 14px;
+  color: var(--text-2);
+  transition: background 0.12s, color 0.12s;
+}
+
+.tool-item:hover {
+  background: var(--panel-hover);
+  color: var(--text);
+}
+
+.tool-item.is-active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* 选中项左侧的指示条，比整块填充更克制 */
+.tool-item.is-active::before {
+  content: "";
+  position: absolute;
+  left: -10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 18px;
+  border-radius: 0 3px 3px 0;
+  background: var(--accent);
+}
+
+.tool-item .ti-icon {
+  flex: none;
+  width: 25px;
+  height: 25px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--text-2);
+  background: var(--icon-bg);
+  border: 1px solid var(--line);
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.tool-item.is-active .ti-icon {
+  color: var(--accent);
+  background: var(--icon-bg-active);
+  border-color: var(--icon-border-active);
+}
+
+.tool-item .ti-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.empty-hint {
+  padding: 24px 12px;
+  font-size: 12.5px;
+  color: var(--text-3);
+  text-align: center;
+}
+
+.sidebar-foot {
+  padding: 10px 14px;
+  border-top: 1px solid var(--line);
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+
+.foot-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.foot-info {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.foot-btn {
+  flex: none;
+  padding: 3px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  font-size: 11.5px;
+  color: var(--text-3);
+  background: transparent;
+  transition: color 0.12s, border-color 0.12s, background 0.12s;
+}
+
+.foot-btn:hover {
+  color: var(--text);
+  border-color: var(--text-3);
+  background: var(--panel-hover);
+}
+
+/* ---------------- 主区域 ---------------- */
+.main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--bg);
+}
+
+.topbar {
+  /* 右侧多留 11px：抵消 .tool-view 给滚动条预留的槽位，两边内容区等宽，居中后才会对齐 */
+  padding: 15px 37px 13px 26px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+
+/* 顶栏内容与 .tool-body 用同一个 max-width，居中后左边缘严丝合缝 */
+.topbar-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  width: 100%;
+  max-width: 1320px;
+  margin-inline: auto;
+}
+
+.topbar-text h1 {
+  font-size: 18px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.topbar-text p {
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: var(--text-3);
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tool-view {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  /* 绝不允许出现横向滚动条：一条横条会吃掉 11px 高度，卡片跟着“抽”一下 */
+  overflow-x: hidden;
+  /* 竖向滚动条常驻占位，出现/消失时内容宽度不再跳变 */
+  scrollbar-gutter: stable;
+  padding: 20px 26px 28px;
+}
+
+/* 切换工具时的轻微上浮，避免内容硬切 */
+.tool-body,
+.welcome {
+  animation: view-in 0.2s ease-out;
+}
+
+@keyframes view-in {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.welcome {
+  max-width: 640px;
+  margin: 7vh auto 0;
+  text-align: center;
+  color: var(--text-2);
+}
+
+.welcome h2 {
+  font-size: 20px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+.welcome p {
+  margin-top: 9px;
+  font-size: 13.5px;
+  line-height: 1.75;
+}
+
+.welcome code {
+  padding: 2px 7px;
+  border-radius: var(--radius-xs);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  background: var(--icon-bg);
+  color: var(--code-text);
+}
+
+/* ---------------- 通用组件 ---------------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 13px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  color: var(--text-2);
+  font-size: 13.5px;
+  white-space: nowrap;
+  box-shadow: var(--shadow-xs);
+  transition: background 0.12s, border-color 0.12s, color 0.12s,
+    box-shadow 0.12s, transform 0.08s;
+}
+
+.btn:hover {
+  background: var(--panel-hover);
+  color: var(--text);
+  border-color: var(--text-3);
+}
+
+.btn:active {
+  transform: translateY(0.5px);
+  box-shadow: none;
+}
+
+.btn-primary {
+  border-color: transparent;
+  background: linear-gradient(180deg, #4a74f9, #3560ea);
+  color: #fff;
+  box-shadow: 0 1px 3px rgba(53, 96, 234, 0.35);
+}
+
+.btn-primary:hover {
+  border-color: transparent;
+  background: linear-gradient(180deg, #3f6bf5, #2f57df);
+  color: #fff;
+}
+
+.btn-ghost {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.btn-ghost:hover {
+  background: var(--panel-hover);
+  border-color: transparent;
+}
+
+.btn-sm {
+  height: 27px;
+  padding: 0 10px;
+  font-size: 12.5px;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* 分段控件的按钮宽度必须与选中态无关，否则切换时整条边框会被撑缩 */
+.seg {
+  display: inline-flex;
+  padding: 3px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--panel-soft);
+}
+
+.seg button {
+  height: 25px;
+  padding: 0 11px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  font-size: 12.5px;
+  color: var(--text-2);
+  transition: background 0.12s, color 0.12s, border-color 0.12s, box-shadow 0.12s;
+}
+
+.seg button:hover {
+  color: var(--text);
+  background: var(--panel-hover);
+}
+
+/* 选中态：浅色底 + 描边 + 强调色文字，比纯白卡片明显得多
+   （宽度只由 padding 与文字决定，切换时不会撑动外框） */
+.seg button.is-on {
+  background: var(--accent-soft);
+  border-color: var(--accent-border);
+  color: var(--accent);
+  box-shadow: var(--shadow-xs);
+}
+
+.card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  box-shadow: var(--shadow-xs);
+}
+
+.tool-body {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  /* 大屏下内容居中，两侧留白均分 */
+  max-width: 1320px;
+  margin-inline: auto;
+  min-height: 100%;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.toolbar .spacer {
+  flex: 1;
+}
+
+/* 通用占位符，把后面的元素推到右边 */
+.spacer {
+  flex: 1;
+}
+
+/* ---------------- 选项面板（分组表单） ---------------- */
+/* 一组选项 = 标题 + 若干行；行内左侧定宽标签保证纵向对齐 */
+.opt-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 14px;
+}
+
+.opt-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.opt-group + .opt-group {
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.opt-group-title {
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  color: var(--text-3);
+}
+
+.opt-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 26px;
+}
+
+.opt-label {
+  flex: none;
+  width: 64px;
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+
+/* 同一行里的第二个标签（如「文本编码」「值排序」），宽度自适应并留出间隔 */
+.opt-label-gap {
+  width: auto;
+  margin-left: 10px;
+  color: var(--text-3);
+}
+
+/* 一行里塞了两件不相干的事时，用一条竖线把它们分开 */
+.opt-label-sep {
+  width: auto;
+  margin-left: 12px;
+  padding-left: 12px;
+  border-left: 1px solid var(--line);
+  color: var(--text-3);
+}
+
+.opt-note {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+/* ---------------- 设置页 ---------------- */
+/* 快捷键、路径这类「值」用等宽块展示，和普通说明文字区分开 */
+.kbd {
+  flex: none;
+  padding: 2px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-xs);
+  background: var(--panel-soft);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.kbd-wide {
+  flex: 0 1 auto;
+  max-width: 480px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 状态徽标：已生效 / 被占用 */
+.badge {
+  flex: none;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  line-height: 18px;
+  color: var(--text-3);
+  background: var(--icon-bg);
+}
+
+.badge.is-ok {
+  color: var(--ok);
+  background: var(--ok-soft);
+}
+
+.badge.is-warn {
+  color: var(--warn);
+  background: var(--warn-soft);
+}
+
+.badge.is-off {
+  color: var(--text-3);
+  background: var(--icon-bg);
+}
+
+.sett-value {
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+/* 行内组合块（标签 + 输入框），显隐时不影响行高 */
+.opt-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 与分段控件同高的小输入框，用于行内的补充参数。
+   写成 .input.input-sm 是为了压过后面 .input 的 34px，避免多 2px 的行高跳动 */
+.input.input-sm {
+  height: 26px;
+  padding: 0 9px;
+  font-size: 12.5px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.field-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  /* 与 .btn-sm 同高：标签行里混放按钮时，两侧文字区都能对齐 */
+  min-height: 27px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.field-label .meta {
+  font-weight: 400;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+}
+
+/* 标签行右侧的一组小工具（字符数 + 复制 + 保存） */
+.field-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.input,
+.textarea {
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  outline: none;
+  box-shadow: var(--shadow-xs);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.input {
+  height: 34px;
+}
+
+.textarea {
+  min-height: 165px;
+  resize: vertical;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.7;
+  tab-size: 2;
+}
+
+.input::placeholder,
+.textarea::placeholder {
+  color: var(--text-3);
+}
+
+.input:focus,
+.textarea:focus {
+  border-color: var(--accent);
+  box-shadow: var(--ring);
+}
+
+.textarea.is-invalid {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px var(--danger-soft);
+}
+
+.split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
+  align-items: stretch;
+  /* 让双栏区域吃掉剩余高度，编辑框自动填满，不留大片空白 */
+  flex: 1;
+  min-height: 0;
+}
+
+.split > .field {
+  height: 100%;
+}
+
+/* 注意：只作用于 .split 里的 .field，避免误伤文件槽位内的粘贴框 */
+.split .field .textarea {
+  flex: 1;
+  min-height: 180px;
+}
+
+@media (max-width: 1000px) {
+  .split {
+    grid-template-columns: 1fr;
+    flex: none;
+  }
+
+  .split .field .textarea {
+    min-height: 155px;
+  }
+}
+
+/* 两列并排输入。字段是单行 input，不用 .split —— 那个是给文本域撑满剩余高度的 */
+.input-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
+}
+
+@media (max-width: 1000px) {
+  .input-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 20px;
+  font-size: 12.5px;
+  color: var(--text-3);
+}
+
+.status.is-ok {
+  color: var(--ok);
+}
+
+.status.is-err {
+  color: var(--danger);
+}
+
+.status .dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.hint {
+  font-size: 12.5px;
+  color: var(--text-3);
+  line-height: 1.65;
+}
+
+.kv {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 5px 18px;
+  font-size: 13.5px;
+}
+
+.kv dt {
+  color: var(--text-3);
+}
+
+.kv dd {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text);
+  word-break: break-all;
+}
+
+.kv-val {
+  flex: 1;
+  min-width: 0;
+}
+
+/* 结果行右侧的小复制按钮，别抢走值的视觉重量 */
+.kv-copy {
+  flex: none;
+  padding: 1px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-xs);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  line-height: 18px;
+  color: var(--text-3);
+  background: transparent;
+  transition: color 0.12s, border-color 0.12s, background 0.12s;
+}
+
+.kv-copy:hover {
+  color: var(--accent);
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+}
+
+/* ---------------- 文件槽位 ---------------- */
+.file-slot {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 12px 14px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--panel);
+  box-shadow: var(--shadow-xs);
+  transition: border-color 0.15s;
+}
+
+.file-slot.is-filled {
+  border-style: solid;
+}
+
+.file-slot-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.file-slot-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.file-slot-body {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 34px;
+  min-width: 0;
+}
+
+.file-name {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-slot .hint {
+  margin-top: 2px;
+  font-size: 11.5px;
+  font-family: var(--font-mono);
+}
+
+.file-meta {
+  margin-left: auto;
+  flex: none;
+  font-size: 11.5px;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+}
+
+.file-empty {
+  font-size: 13px;
+  color: var(--text-3);
+}
+
+/* 槽位顶部的「文件 / 粘贴」切换，用小一号的分段控件 */
+.seg-sm button {
+  height: 21px;
+  padding: 0 9px;
+  font-size: 11.5px;
+}
+
+.slot-textarea {
+  min-height: 112px;
+  font-size: 12.5px;
+  line-height: 1.65;
+  resize: vertical;
+}
+
+.slot-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 23px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+
+/* ---------------- 统计卡 ---------------- */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+}
+
+.stat {
+  padding: 10px 13px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  box-shadow: var(--shadow-xs);
+}
+
+.stat-num {
+  font-family: var(--font-mono);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: -0.4px;
+}
+
+.stat-lbl {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.stat.is-accent .stat-num {
+  color: var(--accent);
+}
+
+.stat.is-warn .stat-num {
+  color: var(--warn);
+}
+
+.stat.is-danger .stat-num {
+  color: var(--danger);
+}
+
+/* ---------------- 标签页 ---------------- */
+/* 同 .seg：选中态不加粗，避免切换标签时整行宽度跳动 */
+.tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid var(--line);
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 13px;
+  margin-bottom: -1px;
+  border-bottom: 2px solid transparent;
+  font-size: 13.5px;
+  color: var(--text-2);
+  transition: color 0.12s, border-color 0.12s;
+}
+
+.tab:hover {
+  color: var(--text);
+}
+
+.tab.is-on {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.tab .tab-count {
+  padding: 0 6px;
+  border-radius: 9px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 17px;
+  color: var(--text-3);
+  background: var(--icon-bg);
+}
+
+.tab.is-on .tab-count {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* ---------------- 数据列表 ---------------- */
+.data-list {
+  max-height: 330px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+/* 长值换行显示而不是横向滚动：横条会占掉 11px 高度，卡片会跟着收缩 */
+.data-list .row {
+  padding: 4px 12px;
+  border-bottom: 1px solid var(--row-line);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.55;
+}
+
+.data-list .row:nth-child(even) {
+  background: var(--panel-soft);
+}
+
+.data-list .row:last-child {
+  border-bottom: none;
+}
+
+.data-list .list-empty {
+  padding: 26px 14px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-3);
+  font-family: var(--font-sans);
+}
+
+.checkbox {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.check-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  color: var(--text-2);
+  cursor: pointer;
+  user-select: none;
+}
+
+.input-inline {
+  width: 70px;
+  text-align: center;
+  font-family: var(--font-mono);
+}

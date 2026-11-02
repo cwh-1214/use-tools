@@ -1,0 +1,17 @@
+# 依赖与产物
+node_modules/
+dist/
+out/
+src-tauri/target/
+src-tauri/gen/
+
+# 本地产物与缓存
+test/output/
+build/icon.ico
+*.log
+
+# 编辑器 / 系统
+.workbuddy/
+.vscode/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self';"
+    />
+    <title>工具集</title>
+    <link rel="stylesheet" href="./styles/base.css" />
+    <link rel="stylesheet" href="./styles/app.css" />
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">T</div>
+          <div class="brand-text">
+            <strong>工具集</strong>
+            <span id="brand-version">—</span>
+          </div>
+        </div>
+
+        <div class="search-wrap">
+          <input id="search" class="search" type="search" placeholder="搜索工具" autocomplete="off" spellcheck="false" />
+        </div>
+
+        <nav id="tool-list" class="tool-list" aria-label="工具列表"></nav>
+
+        <div class="sidebar-foot">
+          <div class="foot-row">
+            <span id="foot-info" class="foot-info"></span>
+            <button id="settings-btn" class="foot-btn" title="设置：快捷键、托盘行为、主题">设置</button>
+          </div>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div class="topbar-inner">
+            <div class="topbar-text">
+              <h1 id="tool-title">工具集</h1>
+              <p id="tool-desc">从左侧选择一个工具</p>
+            </div>
+            <div id="tool-actions" class="topbar-actions"></div>
+          </div>
+        </header>
+
+        <section id="tool-view" class="tool-view" aria-live="polite"></section>
+      </main>
+    </div>
+
+    <script type="module" src="./core/bridge.js"></script>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
