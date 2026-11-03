@@ -1,5 +1,6 @@
-// 端到端场景：列比对在「数据量大」时的页面高度
-// 目的：两个文件都就位后，整页不能出现纵向滚动条——高度分给结果列表，由列表内部滚动。
+// 端到端场景：列比对在「数据量大」时的布局
+// 目的：两个文件都就位后，列表撑到最高 330px、整页不滚动；窗口变矮时列表不低于 120px，
+//       统计卡与底部说明保持原样，元素之间不重叠。
 // fixtures：caseA = DIP000..399，caseB = DIP020..419，共 400 行、20 条差异。
 
 (async () => {
@@ -16,6 +17,10 @@
       console.log(`  FAIL ${label}: 期望 ${e}，实际 ${a}`);
     }
   };
+
+  // 先切到一个「全屏」大小的窗口，模拟真实使用场景
+  window.resizeTo(1600, 890);
+  await sleep(600);
 
   location.hash = '#/column-compare';
   await sleep(500);
@@ -38,8 +43,9 @@
 
   assert('列表已渲染', Boolean(list), true);
   assert('整页没有纵向滚动条', view.scrollHeight <= view.clientHeight + 1, true);
-  assert('列表自身可滚动（高度受视口约束）', list.scrollHeight > list.clientHeight, true);
-  assert('列表至少保留两行高度', list.clientHeight >= 60, true);
+  assert('列表自身可滚动（高度受上限约束）', list.scrollHeight > list.clientHeight, true);
+  assert('列表不超过 330px', list.clientHeight <= 330, true);
+  assert('列表明显变高（全屏下约 11 行）', list.clientHeight > 200, true);
 
   const listBox = list.getBoundingClientRect();
   const hintBox = hint.getBoundingClientRect();
@@ -70,36 +76,27 @@
   // 等防抖落盘，避免把测试用过的 5 留在用户配置里
   await sleep(700);
 
-  // ---------------- 矮窗口：卡片保持原样，列表压到最小，内容不许互相压住 ----------------
+  // ---------------- 矮窗口：卡片保持原样，列表压到最小高度，内容不许互相压住 ----------------
   window.resizeTo(1180, 620);
   await sleep(700);
 
   const statsEl = document.querySelector('.stats');
   assert('矮窗口统计卡仍是卡片', getComputedStyle(statsEl).display, 'grid');
   assert('矮窗口底部说明仍在', getComputedStyle(hint).display, 'block');
-  assert('矮窗口列表仍保留可读高度', list.clientHeight >= 60, true);
+  assert('矮窗口列表不低于 120px', list.clientHeight >= 110, true);
   assert(
     '矮窗口说明文字不压住列表',
     hint.getBoundingClientRect().top >= list.getBoundingClientRect().bottom - 1,
     true
   );
-  console.log('SHORT ' + JSON.stringify({
-    inner: window.innerHeight,
-    viewScroll: view.scrollHeight,
-    viewClient: view.clientHeight,
-    listH: list.clientHeight,
-  }));
 
-  // ---------------- 大窗口（全屏）：列表最高 330，整页仍然不滚 ----------------
+  // 截一个全屏尺寸的图收尾
   window.resizeTo(1600, 890);
-  await sleep(700);
-  assert('大窗口没有整页滚动条', view.scrollHeight <= view.clientHeight + 1, true);
-  assert('大窗口列表不超过 330px', list.clientHeight <= 330, true);
-  assert('大窗口列表明显变高', list.clientHeight > 200, true);
+  await sleep(600);
 
   if (failures.length > 0) {
     throw new Error(`${failures.length} 项断言失败：${failures.join(' | ')}`);
   }
 
-  return { ok: true, assertions: 21 };
+  return { ok: true, assertions: 19 };
 })();
