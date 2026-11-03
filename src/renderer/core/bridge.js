@@ -1,9 +1,8 @@
 /**
  * 平台桥：把 window.api 补齐。
  *
- * Electron 下 preload 已经注入好了，这里什么都不做；
- * Tauri 下没有 preload，就用 invoke 还原一套完全同签名的方法，
- * 于是 tools/ 里的代码（以及 app.js）无需任何改动。
+ * Tauri 没有 preload，就用 invoke 还原一套完整的系统能力方法，
+ * 于是 tools/ 里的代码（以及 app.js）不必关心底层是 Rust 还是 JS。
  *
  * 注意：本文件必须在 app.js 之前加载（同为 module，执行顺序有保证）。
  */
@@ -96,7 +95,7 @@ function createTauriApi(invoke, listen) {
     // Tauri 侧目前没有从托盘反向通知设置页的通道，留空实现保证调用方不用分支
     onSettingsChanged: () => () => {},
 
-    // 与 Electron 的 process.platform 对齐，工具里若按平台分支不会踩空
+    // 与 Node 的 process.platform 对齐，工具里若按平台分支不会踩空
     platform: navigator.userAgent.includes('Windows')
       ? 'win32'
       : navigator.userAgent.includes('Mac')
@@ -127,7 +126,7 @@ if (!window.api) {
   if (tauri?.core?.invoke) {
     window.api = createTauriApi(tauri.core.invoke, tauri.event?.listen);
   } else {
-    console.warn('[bridge] 未检测到 Electron preload 或 Tauri runtime，系统能力不可用');
+    console.warn('[bridge] 未检测到 Tauri runtime，系统能力不可用');
     // 兜底：让工具至少能渲染出来，点了不至于抛 TypeError
     window.api = {
       clipboard: { readText: async () => '', writeText: async () => {} },

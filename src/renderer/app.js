@@ -329,15 +329,9 @@ async function boot() {
   if (window.api?.info) {
     const info = await window.api.info();
     els.version.textContent = `v${info.version}`;
-    // Electron 版走 electron/chrome 字段，Tauri 版走 tauri/webview 字段
-    const full = info.electron
-      ? `Electron ${info.electron} · Chrome ${String(info.chrome).split('.')[0]}`
-      : `Tauri ${info.tauri} · WebView2 ${String(info.webview).split('.')[0]}`;
     // 侧边栏只有 246px，正文只放主版本号，完整信息挂在 tooltip 上
-    els.footInfo.textContent = info.electron
-      ? `Electron ${String(info.electron).split('.')[0]}`
-      : `Tauri ${info.tauri}`;
-    els.footInfo.title = full;
+    els.footInfo.textContent = `Tauri ${info.tauri}`;
+    els.footInfo.title = `Tauri ${info.tauri} · WebView2 ${String(info.webview).split('.')[0]}`;
   }
 
   console.log(`app-ready tools=${tools.length}`);

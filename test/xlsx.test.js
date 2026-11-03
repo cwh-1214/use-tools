@@ -1,5 +1,5 @@
 /**
- * xlsx 生成器的离线验证（不依赖 Electron / 浏览器）
+ * xlsx 生成器的离线验证（不依赖浏览器）
  * npm test  →  node test/xlsx.test.js
  *
  * 渲染层的模块是 ESM，这里用「去掉 export 再 Function 求值」的方式加载，

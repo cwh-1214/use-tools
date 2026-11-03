@@ -1,7 +1,6 @@
 # 依赖与产物
 node_modules/
 dist/
-out/
 src-tauri/target/
 src-tauri/gen/
 

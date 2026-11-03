@@ -1,6 +1,6 @@
 //! 应用外壳：窗口、托盘、全局快捷键、单实例、窗口几何记忆。
 //!
-//! 与 Electron 版 main.js 一一对应，只是把 BrowserWindow/Tray/globalShortcut
+//! 把 BrowserWindow/Tray/globalShortcut
 //! 换成了 Tauri 的等价物。渲染层逻辑与工具代码完全没动。
 
 mod column_scan;
@@ -36,6 +36,12 @@ pub struct AppState {
 // ---------------------------------------------------------------------------
 // 窗口
 // ---------------------------------------------------------------------------
+
+/// "1120x720" → (1120.0, 720.0)
+fn parse_size(raw: &str) -> Option<(f64, f64)> {
+    let (width, height) = raw.split_once('x')?;
+    Some((width.trim().parse().ok()?, height.trim().parse().ok()?))
+}
 
 fn main_window(app: &AppHandle) -> Option<WebviewWindow> {
     app.get_webview_window("main")
@@ -321,11 +327,17 @@ pub(crate) fn register_hotkey(app: &AppHandle, accelerator: &str) -> bool {
 // ---------------------------------------------------------------------------
 
 pub fn run() {
-    let app = tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+    // 冒烟/自动化测试要能和应用本体同时跑：跳过单实例锁，避免被已有实例「顶掉」
+    let smoke_mode = std::env::var("USE_TOOLS_SMOKE").is_ok();
+    let mut builder = tauri::Builder::default();
+    if !smoke_mode {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
             // 已有实例在跑：把自己带到前台
             show_window(app);
-        }))
+        }));
+    }
+
+    let app = builder
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(
@@ -339,6 +351,7 @@ pub fn run() {
                 .build(),
         )
         .invoke_handler(tauri::generate_handler![
+            smoke::smoke_resize,
             commands::pick_file,
             commands::save_text,
             commands::save_file,
@@ -363,11 +376,16 @@ pub fn run() {
             commands::app_emit_summoned,
             smoke::smoke_report,
         ])
-        .setup(|app| {
-            let config_dir: PathBuf = app
-                .path()
-                .app_config_dir()
-                .unwrap_or_else(|_| PathBuf::from("."));
+        .setup(move |app| {
+            // 测试可以用独立配置目录，避免污染用户真实设置
+            let config_dir: PathBuf = std::env::var("USE_TOOLS_CONFIG_DIR")
+                .map(PathBuf::from)
+                .unwrap_or_else(|_| {
+                    app.path()
+                        .app_config_dir()
+                        .unwrap_or_else(|_| PathBuf::from("."))
+                });
+            let _ = std::fs::create_dir_all(&config_dir);
             let store = Store::load(config_dir.join("settings.json"));
 
             // 主题：system 交给系统决定，Chromium/WebView2 的 prefers-color-scheme 会跟着变
@@ -381,6 +399,17 @@ pub fn run() {
             if let Some(win) = app.get_webview_window("main") {
                 let _ = win.set_theme(theme);
                 restore_window_bounds(&win, &store);
+                // 自动化测试用固定窗口，别被用户上次的几何设置带偏
+                if smoke_mode {
+                    if let Some((width, height)) = std::env::var("USE_TOOLS_SMOKE_WINDOW")
+                        .ok()
+                        .and_then(|raw| parse_size(&raw))
+                    {
+                        let _ = win.unmaximize();
+                        let _ = win.set_size(tauri::LogicalSize::new(width, height));
+                        let _ = win.center();
+                    }
+                }
                 let _ = win.show();
                 let _ = win.set_focus();
             }
@@ -392,15 +421,25 @@ pub fn run() {
                 bounds_tx,
             });
 
-            spawn_bounds_saver(app.handle().clone(), bounds_rx);
+            // 冒烟时不要写窗口几何：测试会反复缩放，别污染用户配置
+            if !smoke_mode {
+                spawn_bounds_saver(app.handle().clone(), bounds_rx);
+            }
 
             let initial_hotkey = store.ui_string("hotkey", DEFAULT_HOTKEY);
-            let hotkey_ok = register_hotkey(app.handle(), &initial_hotkey);
+            // 冒烟时不抢全局快捷键、不建托盘：让设置页处于确定的「未启用」状态
+            let hotkey_ok = if smoke_mode {
+                false
+            } else {
+                register_hotkey(app.handle(), &initial_hotkey)
+            };
             app.state::<AppState>()
                 .hotkey_ok
                 .store(hotkey_ok, Ordering::Relaxed);
 
-            create_tray(app.handle(), hotkey_ok)?;
+            if !smoke_mode {
+                create_tray(app.handle(), hotkey_ok)?;
+            }
 
             // 自动化自检：注入 JS 收集界面状态，断言通过后自行退出
             if std::env::var("USE_TOOLS_SMOKE").is_ok() {

@@ -1,5 +1,5 @@
-//! 命令层：与 Electron 版 ipc.js + preload.js 暴露的契约一一对应。
-//! 渲染进程看到的仍然是 window.api.*，只是底层从 ipcRenderer.invoke 换成了 tauri invoke。
+//! 命令层：渲染进程能调用的全部系统能力。
+//! 渲染进程看到的仍然是 window.api.*，底层由 core/bridge.js 转成 tauri invoke。
 
 use crate::column_scan::{self, ScanOptions, ScanResult, TextScanOptions};
 use crate::AppState;
@@ -8,12 +8,38 @@ use encoding_rs::{Encoding, UTF_8};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::path::Path;
+use std::sync::{Mutex, OnceLock};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
 
 const MAX_TEXT_FILE_BYTES: u64 = 32 * 1024 * 1024;
+
+/// 自动化测试：文件选择框不弹窗，按顺序返回预设路径。
+/// 只在 USE_TOOLS_SMOKE=1 时启用，正常使用完全不受影响。
+fn fixture_queue() -> &'static Mutex<Vec<String>> {
+    static QUEUE: OnceLock<Mutex<Vec<String>>> = OnceLock::new();
+    QUEUE.get_or_init(|| {
+        let list = std::env::var("USE_TOOLS_FIXTURE_QUEUE")
+            .map(|raw| {
+                raw.split(';')
+                    .filter(|item| !item.is_empty())
+                    .map(|item| item.to_string())
+                    .collect()
+            })
+            .unwrap_or_default();
+        Mutex::new(list)
+    })
+}
+
+fn smoke_save_path(default_name: &str) -> Option<std::path::PathBuf> {
+    if std::env::var("USE_TOOLS_SMOKE").is_err() {
+        return None;
+    }
+    let dir = std::env::var("USE_TOOLS_SAVE_DIR").ok()?;
+    Some(Path::new(&dir).join(default_name))
+}
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -88,6 +114,14 @@ pub async fn pick_file(app: AppHandle, args: Option<PickFileArgs>) -> Result<Opt
         .unwrap_or_default();
     let title = title.unwrap_or_else(|| "选择文件".to_string());
 
+    if std::env::var("USE_TOOLS_SMOKE").is_ok() {
+        if let Ok(mut queue) = fixture_queue().lock() {
+            if !queue.is_empty() {
+                return Ok(Some(queue.remove(0)));
+            }
+        }
+    }
+
     // 对话框回调走事件循环，这里用 channel 把它同步回来。
     // 命令跑在异步运行时线程上，阻塞等待不会卡住主线程。
     let (tx, rx) = std::sync::mpsc::channel();
@@ -119,6 +153,11 @@ pub async fn save_text(app: AppHandle, args: SaveTextArgs) -> Result<Option<Stri
     let default_name = args.default_name.unwrap_or_else(|| "untitled.txt".to_string());
     let content = args.content.unwrap_or_default();
 
+    if let Some(path) = smoke_save_path(&default_name) {
+        std::fs::write(&path, content).map_err(|err| format!("写入失败：{err}"))?;
+        return Ok(Some(path.to_string_lossy().to_string()));
+    }
+
     let (tx, rx) = std::sync::mpsc::channel();
     app.dialog()
         .file()
@@ -145,6 +184,11 @@ pub async fn save_file(app: AppHandle, args: SaveFileArgs) -> Result<Option<Stri
     let bytes = base64::engine::general_purpose::STANDARD
         .decode(data)
         .map_err(|err| format!("数据解码失败：{err}"))?;
+
+    if let Some(path) = smoke_save_path(&default_name) {
+        std::fs::write(&path, bytes).map_err(|err| format!("写入失败：{err}"))?;
+        return Ok(Some(path.to_string_lossy().to_string()));
+    }
 
     let (tx, rx) = std::sync::mpsc::channel();
     app.dialog()
@@ -346,7 +390,7 @@ pub fn app_hide(app: AppHandle) {
     }
 }
 
-/// 供渲染层主动触发「唤出」时的聚焦事件（保持与 Electron 版同名事件）
+/// 供渲染层主动触发「唤出」时的聚焦事件
 #[tauri::command]
 pub fn app_emit_summoned(app: AppHandle) {
     let _ = app.emit("app:summoned", ());

@@ -3,24 +3,18 @@
   "version": "0.1.0",
   "private": true,
   "description": "桌面工具集合体：一个外壳 + 一堆即插即用的小工具",
-  "main": "src/main/main.js",
   "scripts": {
-    "start": "node scripts/launch.js",
-    "dev": "node scripts/launch.js --dev",
-    "smoke": "node scripts/launch.js --smoke",
-    "test": "node test/column-scan.test.js && node test/xlsx.test.js",
-    "test:e2e": "node scripts/e2e.js",
-    "test:all": "node test/column-scan.test.js && node scripts/e2e.js",
-    "dist": "electron-builder --win",
-    "dist:dir": "electron-builder --win --dir",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build"
+    "tauri:build": "tauri build",
+    "test": "node test/xlsx.test.js",
+    "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
+    "test:e2e": "node scripts/e2e.js",
+    "test:all": "node test/xlsx.test.js && node scripts/e2e.js"
   },
   "keywords": [
     "desktop",
     "toolbox",
-    "electron",
     "tauri"
   ],
   "license": "MIT",
@@ -34,47 +28,6 @@
     "url": "https://github.com/cwh-1214/use-tools/issues"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2",
-    "electron": "^45.0.0",
-    "electron-builder": "^26.18.0"
-  },
-  "build": {
-    "appId": "com.usertools.desktop",
-    "productName": "工具集",
-    "directories": {
-      "output": "dist",
-      "buildResources": "build"
-    },
-    "files": [
-      "src/**/*",
-      "package.json"
-    ],
-    "compression": "maximum",
-    "afterPack": "scripts/prune-locales.js",
-    "win": {
-      "icon": "build/icon.ico",
-      "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        }
-      ],
-      "artifactName": "use-tools-${version}-setup.${ext}"
-    },
-    "nsis": {
-      "oneClick": false,
-      "perMachine": false,
-      "allowElevation": true,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "shortcutName": "工具集",
-      "deleteAppDataOnUninstall": false,
-      "differentialPackage": false,
-      "language": "2052",
-      "artifactName": "use-tools-${version}-setup.${ext}"
-    }
+    "@tauri-apps/cli": "^2"
   }
 }

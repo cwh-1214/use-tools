@@ -2,7 +2,7 @@
 
 一个桌面工具集合体：**一个外壳 + 无数个即插即用的小工具**。
 
-- 技术栈：一套原生 HTML/CSS/ES Module 的渲染层，**Electron 与 Tauri 两个外壳共用**（都没有 Vite / Webpack / babel，零构建步骤）
+- 技术栈：**Tauri 2 外壳（Rust）+ 一套原生 HTML/CSS/ES Module 渲染层**（没有 Vite / Webpack / babel，零构建步骤）
 - 加一个工具 = 加一个文件夹 + 一行 import，改完刷新窗口即生效
 - 删一个工具 = 删文件夹 + 删那行 import，不留任何残留
 
@@ -17,14 +17,15 @@
 ## 运行
 
 ```bash
-npm install     # 首次
-npm start       # 启动
-npm run dev     # 启动并打开 DevTools
-npm run smoke   # 无界面冒烟测试，验证渲染进程能否正常加载
-npm test        # 单元测试（文件读取与列抽取逻辑）
-npm run test:e2e# 端到端测试（真的点按钮、断言界面结果，出截图）
-npm run tauri:dev # 用 Tauri 外壳启动（产物 3.8MB，需 Rust 工具链，见文末）
+npm install        # 首次（只装 Tauri CLI）
+npm run tauri:dev  # 开发运行（首次编译 2~4 分钟，之后增量秒级）
+npm run tauri:build# 出安装包 → src-tauri/target/release/bundle/nsis/
+npm test           # 离线单元测试（xlsx 生成器）
+npm run test:e2e   # 端到端测试（真的点按钮、断言界面结果）
+npm run test:all   # 两层一起跑
 ```
+
+> 端到端测试需要先构建可执行文件：`cargo build --release`（或用 `USE_TOOLS_EXE` 指向已有产物）。
 
 当前有 5 个工具：JSON 格式化、Base64 编解码、时间戳转换、列比对、SQL IN 生成器。
 
@@ -94,26 +95,17 @@ use-tools/
 │   ├── icon.ico               应用图标（7 个尺寸，由脚本生成）
 │   └── make-icon.py           纯标准库生成 ico，不依赖 Pillow
 ├── scripts/
-│   ├── launch.js              启动器（剔除 ELECTRON_RUN_AS_NODE 等环境干扰）
-│   └── e2e.js                 端到端测试编排
+│   └── e2e.js                 端到端测试编排（起 Tauri 可执行文件跑场景脚本）
 ├── src/
-│   ├── main/
-│   │   ├── main.js            主进程：窗口、app:// 协议、托盘接线、冒烟测试钩子
-│   │   ├── ipc.js             主进程 ↔ 渲染进程的能力桥（文件、剪贴板、设置、主题…）
-│   │   ├── store.js           设置持久化（userData/settings.json，原子写入）
-│   │   ├── tray.js            托盘 + 全局快捷键
-│   │   └── column-scan.js     流式按列抽取唯一值（文件列比对的计算核心）
-│   ├── assets/
-│   │   └── tray*.png          托盘图标（16/32 两份，make-icon.py 生成）
-│   ├── preload/
-│   │   └── preload.js         通过 contextBridge 暴露 window.api
 │   └── renderer/
 │       ├── index.html
 │       ├── app.js             外壳：侧边栏、搜索、路由、工具挂载
 │       ├── core/
 │       │   ├── dom.js         h() / debounce() / formatBytes() 等小工具
 │       │   ├── ui.js          toolbar() / field() / seg() / statusBar() 等共用组件
-│       │   ├── bridge.js      Tauri 下用 invoke 还原 window.api（Electron 下不做事）
+│       │   ├── bridge.js      用 invoke 还原 window.api（渲染层与 Rust 的唯一接口）
+│       │   ├── files.js       扩展名白名单（导入类型限制）
+│       │   ├── xlsx.js        手写 OOXML 的 xlsx 生成器（导出比对结果）
 │       │   └── registry.js    工具校验、分组、搜索
 │       ├── styles/
 │       │   ├── base.css       设计令牌与重置
@@ -129,10 +121,10 @@ use-tools/
 │               ├── index.js   界面与交互
 │               └── parse.js   纯清洗/切分/拼装逻辑（不依赖 DOM，便于测试）
 ├── test/
-│   ├── column-scan.test.js    列抽取逻辑断言（不需要 Electron）
+│   ├── xlsx.test.js           xlsx 生成器断言（纯 Node，不需要浏览器）
 │   ├── e2e/                   注入页面的端到端场景（每个工具一个同名脚本）
 │   ├── fixtures/              测试用的样例文件（按场景名建子目录）
-│   └── output/                测试截图（已 gitignore）
+│   └── output/                测试报告与产物（已 gitignore）
 ├── dist/                      打包产物（已 gitignore）
 ├── src-tauri/                 Tauri 外壳（Rust 主进程 + 配置，见文末）
 └── docs/
@@ -183,7 +175,7 @@ export default {
 | `api.info()` | 应用与运行时版本 |
 | `api.platform` | `win32` / `darwin` / `linux` |
 
-需要新能力（读目录、算哈希、调外部程序）时，在 `src/main/ipc.js` 加一个 `ipcMain.handle`，再在 `preload.js` 暴露一行即可。**大文件处理一律放主进程**，别在渲染进程里读整份内容。
+需要新能力（读目录、算哈希、调外部程序）时，在 `src-tauri/src/commands.rs` 加一个 `#[tauri::command]`，再在 `core/bridge.js` 暴露一行即可。**大文件处理一律放 Rust 侧**，别在渲染进程里读整份内容。
 
 ## 样式约定
 
@@ -199,15 +191,25 @@ export default {
 
 两层，都不需要人工点界面：
 
-- `npm test` —— 纯 Node，直接测 `src/main/column-scan.js`。覆盖 CRLF、空行、越界列、GBK、BOM、多字符分隔符、6 万行大文件、异常输入。
-- `npm run test:e2e` —— 起真实窗口，注入脚本点按钮跑完整流程，断言界面结果，末尾把截图存到 `test/output/`。不带参数时依次跑 `test/e2e/` 下所有场景；只跑一个就 `npm run test:e2e sql-in`。
+- `npm test` —— 纯 Node，测 `src/renderer/core/xlsx.js`（xlsx 生成器）：部件结构、XML 转义、工作表名清洗与去重、base64 往返。
+- `npm run test:e2e` —— 起真实的 Tauri 窗口，把 `test/e2e/<场景>.js` 注入页面，点按钮跑完整流程并断言界面结果。不带参数时依次跑所有场景；只跑一个就 `npm run test:e2e sql-in`。
 - `npm run test:all` —— 两层一起跑。
 
-机制是三个只在冒烟模式生效的环境变量：`SMOKE_SCRIPT` 注入 JS、`SMOKE_SHOT` 出截图、`SMOKE_FIXTURE_QUEUE` 让文件选择框直接返回预设路径（绕开系统弹窗）。给新工具加交互测试时，在 `test/e2e/` 放一个同名场景脚本即可；需要样例文件就建 `test/fixtures/<场景名>/`，里面的文件会按文件名顺序进队列。
+机制是一组只在冒烟模式（`USE_TOOLS_SMOKE=1`）生效的环境变量：
 
-## 打包（Tauri 版，体积 3.8MB）
+| 变量 | 作用 |
+|---|---|
+| `USE_TOOLS_SMOKE_SCRIPT` | 要注入页面的场景脚本路径 |
+| `USE_TOOLS_FIXTURE_QUEUE` | `;` 分隔的预设文件路径，文件选择框按顺序直接返回（绕开系统弹窗） |
+| `USE_TOOLS_SAVE_DIR` | 保存对话框不弹窗，产物直接落到这个目录 |
+| `USE_TOOLS_CONFIG_DIR` | 独立配置目录，测试不碰用户真实设置 |
+| `USE_TOOLS_SMOKE_WINDOW` | 固定窗口尺寸（如 `1120x720`），布局断言才稳定 |
 
-Electron 的 98MB 里有 239MB 是 Chromium 主程序的固定成本，压不下去。Tauri 复用系统自带的 WebView2，同一份渲染层几乎零改动就能跑，产物从 **98MB 降到 3.8MB**。
+给新工具加交互测试时，在 `test/e2e/` 放一个同名场景脚本即可；需要样例文件就建 `test/fixtures/<场景名>/`，里面的文件会按文件名顺序进队列。
+
+## 打包（体积 4.4MB）
+
+Tauri 复用系统自带的 WebView2，不自带 Chromium，产物只有一个几 MB 的 exe。
 
 ```bash
 npm run tauri:dev                    # 开发运行（首次编译 2~4 分钟，之后增量秒级）
@@ -234,48 +236,30 @@ src-tauri/
 └── src/
     ├── main.rs                入口（发布版不弹控制台）
     ├── lib.rs                 窗口、托盘、全局快捷键、单实例、窗口几何记忆
-    ├── commands.rs            IPC 命令，签名与原来 ipc.js 一一对应
+    ├── commands.rs            全部系统能力（文件、剪贴板、设置、主题、快捷键…）
     ├── settings.rs            设置持久化（深合并 + 300ms 防抖 + 临时文件 rename）
     ├── column_scan.rs         流式按列抽取（encoding_rs 解码，GBK→GB18030）
     └── smoke.rs               自检：注入 JS → IPC 回传 → Rust 断言
 ```
 
-**前端只加了一个文件** `src/renderer/core/bridge.js`：检测到 `window.__TAURI__` 时用 `invoke` 还原同签名的 `window.api`，于是 `app.js` 和 5 个工具一行没改。
+**渲染层只有一个接口文件** `src/renderer/core/bridge.js`：用 `invoke` 还原 `window.api`，工具代码不直接碰 Rust。
 
-| 对比项 | Electron 版 | Tauri 版 |
+| 对比项 | Electron（已移除） | Tauri（现在） |
 |---|---|---|
-| 分发包 | 98 MB（NSIS 安装包） | 3.82 MB（exe）/ 1.73 MB（zip） |
-| 磁盘占用 | ~310 MB | 3.82 MB |
+| 分发包 | 98 MB（NSIS 安装包） | 4.4 MB（exe）/ 2.0 MB（zip） |
+| 磁盘占用 | ~310 MB | 4.4 MB |
 | 运行内存 | 120 MB+ | 35 MB |
 | 冷启动 | 较慢（要起 Chromium） | 快（复用系统 WebView2） |
 | 数据目录 | `%APPDATA%\工具集` | `%APPDATA%\com.usertools.desktop` |
 
-> 两套外壳**并存**，`npm start` 仍是 Electron 版，互不干扰；数据目录也是分开的。
 > 已知限制：`tauri build` 的最后一步要从 GitHub 下载 NSIS 工具链，国内直连会被掐断（报 `peer closed connection` 或代理 502）。**exe 本身不需要它**，拿到 `target/release/use-tools.exe` 就能直接用；要安装包时开代理再跑一次即可，工具链会缓存在 `%LOCALAPPDATA%\tauri`。
 
-## 打包（Electron 版）
-
-```bash
-npm run dist       # 出 NSIS 安装包 → dist/use-tools-<version>-setup.exe
-npm run dist:dir   # 只出免安装目录 → dist/win-unpacked/（快速验证用）
-```
-
-- **体积**：安装包约 98MB，安装后约 310MB。这是 Electron 的固定成本（自带 Chromium + Node），不是配置问题；已做语言包裁剪（只留中英）+ NSIS 最大压缩，再往下只能换 Tauri（需 Rust 工具链）。`scripts/prune-locales.js` 是打包钩子，负责删语言包。
-- **安装位置**：默认 `%LOCALAPPDATA%\Programs\工具集`，可改路径；建桌面与开始菜单快捷方式；卸载保留用户数据。
 - **图标**：`build/make-icon.py` 用 Python 标准库生成 7 个尺寸的 `build/icon.ico`（不依赖 Pillow），改配色就改脚本顶部的常量再跑一次。
-- **国内打包**：electron-builder 要额外下载 electron 与 nsis 资源，走镜像才不卡：
-
-```bash
-ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ \
-ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/ \
-npm run dist
-```
-
 - **未签名**：没配代码签名证书，Windows 首次运行会弹「未知发布者」，点「更多信息 → 仍要运行」即可。自己用不用管，要分发就得买张证书。
 
-打包完想确认产物真能跑（而不是只看到"构建成功"），直接让安装版自己冒烟：
+打包完想确认产物真能跑（而不是只看到「构建成功」），直接让它自己冒烟：
 
 ```bash
-SMOKE_HASH="sql-in" SMOKE_SHOT="dist/check.png" "dist/win-unpacked/工具集.exe" --smoke
+USE_TOOLS_SMOKE=1 ./src-tauri/target/release/use-tools.exe   # 退出码 0 = 通过
 ```
 

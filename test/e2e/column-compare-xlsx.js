@@ -1,7 +1,7 @@
 // 端到端场景：列比对读 xlsx（按单元格取列，忽略分隔符与编码）
 // fixtures：column-compare-xlsx/a.xlsx = 用户ID/u1001/u1002/u1003
 //           column-compare-xlsx/b.xlsx = 用户ID/u1001/u1003/u1004
-// 由 scripts/e2e.js 注入执行，配合 SMOKE_FIXTURE_QUEUE 免去文件选择框。
+// 由 scripts/e2e.js 交给 Tauri 冒烟钩子执行，配合 USE_TOOLS_FIXTURE_QUEUE 免去文件选择框。
 
 (async () => {
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

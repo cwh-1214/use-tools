@@ -1,6 +1,7 @@
 // 端到端场景：设置页
 // 验证关闭到托盘开关、主题切换、快捷键区块与关于信息。
-// 冒烟模式不创建托盘，所以快捷键会显示「当前环境未启用」并禁用修改按钮——这正是预期行为。
+// 冒烟模式不抢全局快捷键，所以状态是「被占用，未生效」或「当前环境未启用」；
+// 修改按钮应当可用（Tauri 版支持改键，只是这次没注册成功）。
 
 (async () => {
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -54,10 +55,11 @@
 
   // ---------------- 快捷键 ----------------
   assert('显示当前快捷键', document.querySelector('.kbd')?.textContent, 'Ctrl+Shift+Space');
-  assert('冒烟环境标记为未启用', document.querySelector('.badge')?.textContent, '当前环境未启用');
+  const badge = document.querySelector('.badge')?.textContent || '';
+  assert('快捷键状态有明确提示', ['当前环境未启用', '被占用，未生效', '已生效'].includes(badge), true);
 
   const editBtn = Array.from(document.querySelectorAll('.btn')).find((b) => b.textContent === '修改');
-  assert('未启用时禁用修改', editBtn.disabled, true);
+  assert('快捷键允许修改', editBtn.disabled, false);
 
   // ---------------- 关于 ----------------
   const versionText = Array.from(document.querySelectorAll('.sett-value')).map((n) => n.textContent)[0] || '';

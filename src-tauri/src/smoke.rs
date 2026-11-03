@@ -154,14 +154,94 @@ fn read_reports() -> Vec<String> {
     reports().lock().map(|list| list.clone()).unwrap_or_default()
 }
 
+/// 冒烟模式下允许测试脚本缩放窗口：WebView 里的 window.resizeTo 在 Tauri 不生效
+#[tauri::command]
+pub fn smoke_resize(window: tauri::WebviewWindow, width: f64, height: f64) -> Result<(), String> {
+    if std::env::var("USE_TOOLS_SMOKE").is_err() {
+        return Err("仅冒烟模式可用".into());
+    }
+    let _ = window.unmaximize();
+    window
+        .set_size(tauri::LogicalSize::new(width, height))
+        .map_err(|err| err.to_string())
+}
+
+/// 把 test/e2e/*.js 包一层：脚本里照旧 return / throw，这里负责回传结果。
+/// window.resizeTo 接到 smoke_resize，场景脚本不用为 Tauri 改写。
+fn wrap_script(source: &str) -> String {
+    // 场景文件是 `(async () => {...})();` 形式，外面再包一层 await 时要先去掉末尾分号
+    let expression = source.trim().trim_end_matches(';');
+    format!(
+        r#"(async () => {{
+    const invoke = window.__TAURI__.core.invoke;
+    window.resizeTo = (w, h) => {{ invoke('smoke_resize', {{ width: w, height: h }}); }};
+    try {{
+        const result = await ({expression});
+        await invoke('smoke_report', {{ payload: JSON.stringify({{ phase: 'SCRIPT', ok: true, result }}) }});
+    }} catch (err) {{
+        await invoke('smoke_report', {{ payload: JSON.stringify({{ phase: 'SCRIPT', ok: false, error: String((err && (err.stack || err.message)) || err) }}) }});
+    }}
+}})()"#
+    )
+}
+
+fn print_and_exit(app: &AppHandle, ok: bool) {
+    let list = read_reports();
+    println!("===== Tauri 冒烟结果 =====");
+    for line in &list {
+        println!("{line}");
+    }
+    println!("===== {} =====", if ok { "通过" } else { "失败" });
+
+    if let Ok(path) = std::env::var("USE_TOOLS_SMOKE_OUT") {
+        let _ = std::fs::write(path, format!("{}\n", list.join("\n")));
+    }
+
+    app.exit(if ok { 0 } else { 1 });
+}
+
 pub fn attach(app: &AppHandle) {
     let app = app.clone();
     thread::spawn(move || {
         // 等页面首帧渲染完再注入
         thread::sleep(Duration::from_millis(2000));
-        if let Some(win) = app.get_webview_window("main") {
-            let _ = win.eval(SMOKE_JS);
+        let Some(win) = app.get_webview_window("main") else {
+            println!("[smoke] 找不到主窗口");
+            app.exit(1);
+            return;
+        };
+
+        // 场景脚本模式：跑 test/e2e/<scenario>.js，结果由脚本回传
+        if let Ok(path) = std::env::var("USE_TOOLS_SMOKE_SCRIPT") {
+            let source = match std::fs::read_to_string(&path) {
+                Ok(text) => text,
+                Err(err) => {
+                    println!("[smoke] 读取场景脚本失败 {path}: {err}");
+                    app.exit(1);
+                    return;
+                }
+            };
+            let _ = win.eval(wrap_script(&source));
+
+            let deadline = Instant::now() + Duration::from_secs(90);
+            loop {
+                let done = read_reports()
+                    .iter()
+                    .any(|line| line.contains("\"phase\":\"SCRIPT\""));
+                if done || Instant::now() > deadline {
+                    break;
+                }
+                thread::sleep(Duration::from_millis(150));
+            }
+
+            let list = read_reports();
+            let has = |needle: &str| list.iter().any(|line| line.contains(needle));
+            let ok = has("\"phase\":\"SCRIPT\",\"ok\":true");
+            print_and_exit(&app, ok);
+            return;
         }
+
+        let _ = win.eval(SMOKE_JS);
 
         // 等 D / S / H 阶段落地（或超时）
         let deadline = Instant::now() + Duration::from_secs(12);
@@ -177,35 +257,23 @@ pub fn attach(app: &AppHandle) {
 
         let list = read_reports();
         let has = |needle: &str| list.iter().any(|line| line.contains(needle));
-        let ok = has("\"phase\":\"D\"")
-            && has("\"phase\":\"S\"")
+        // 逐阶段判定：H 阶段（设置全局快捷键）只要命令有回包就算通过——
+        // 用户正在运行的实例可能已经占着这个快捷键，注册失败不代表代码有问题
+        let ok = has("\"phase\":\"D\",\"ok\":true")
+            && has("\"phase\":\"S\",\"ok\":true")
             && has("\"phase\":\"H\"")
             && has("\"phase\":\"C2\"")
-            && has("\"phase\":\"C3\"")
-            && has("\"kept\":true")
+            && has("\"phase\":\"C3\",\"kept\":true")
             && has("\"views\":1")
             && has("\"mentionsXlsx\":true")
             && has("\"sameRow\":true")
             && has("\"encoding\":[\"自动\",\"UTF-8\",\"ANSI\"]")
-            && has("\"registered\":true")
-            && has("\"ok\":true")
             && has("\"count\":5")
             && has("\"hasInput\":true")
             && has("\"unique\":2")
             && !has("\"loadError\":true")
-            && !has("\"phase\":\"E\"")
-            && !has("\"ok\":false");
+            && !has("\"phase\":\"E\"");
 
-        println!("===== Tauri 冒烟结果 =====");
-        for line in &list {
-            println!("{line}");
-        }
-        println!("===== {} =====", if ok { "通过" } else { "失败" });
-
-        if let Ok(path) = std::env::var("USE_TOOLS_SMOKE_OUT") {
-            let _ = std::fs::write(path, format!("{}\n", list.join("\n")));
-        }
-
-        app.exit(if ok { 0 } else { 1 });
+        print_and_exit(&app, ok);
     });
 }

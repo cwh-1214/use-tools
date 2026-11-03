@@ -1,5 +1,5 @@
 // 端到端场景：列比对（文件模式 → 粘贴模式 → 剪贴板粘贴）
-// 由 scripts/e2e.js 注入执行，配合 SMOKE_FIXTURE_QUEUE 免去文件选择框。
+// 由 scripts/e2e.js 交给 Tauri 冒烟钩子执行，配合 USE_TOOLS_FIXTURE_QUEUE 免去文件选择框。
 // fixtures：caseA = DIP001/002/003/005/010，caseB = DIP001/002/004/005/011
 
 (async () => {

@@ -264,9 +264,7 @@ export function mountSettings({ root, api }) {
 
       if (api.info) {
         const info = await api.info();
-        const runtime = info.electron
-          ? `v${info.version} · Electron ${info.electron}`
-          : `v${info.version} · Tauri ${info.tauri}`;
+        const runtime = `v${info.version} · Tauri ${info.tauri}`;
         runtimeValue.textContent = runtime;
       }
 
