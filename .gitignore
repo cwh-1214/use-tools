@@ -6,7 +6,6 @@ src-tauri/gen/
 
 # 本地产物与缓存
 test/output/
-build/icon.ico
 *.log
 
 # 编辑器 / 系统

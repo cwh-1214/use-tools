@@ -9,8 +9,8 @@
     "tauri:build": "tauri build",
     "test": "node test/xlsx.test.js",
     "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
-    "test:e2e": "node scripts/e2e.js",
-    "test:all": "node test/xlsx.test.js && node scripts/e2e.js"
+    "test:e2e": "node test/run-e2e.js",
+    "test:all": "node test/xlsx.test.js && node test/run-e2e.js"
   },
   "keywords": [
     "desktop",

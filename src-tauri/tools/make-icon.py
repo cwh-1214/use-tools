@@ -1,5 +1,5 @@
 """
-生成应用图标 build/icon.ico（多尺寸，内嵌 PNG）。
+生成应用图标：写入 src-tauri/icons/（窗口、任务栏、托盘、安装包共用）。
 只依赖 Python 标准库，避免为了一个图标去装 Pillow。
 
 图案：圆角渐变底板 + 若干条长度递减的白色横条（工具列表的意象），
@@ -184,23 +184,12 @@ def write_ico(path):
 
 
 if __name__ == "__main__":
-    here = os.path.dirname(os.path.abspath(__file__))
-    target = os.path.join(here, "icon.ico")
-    write_ico(target)
-    print(f"生成 {target}（{os.path.getsize(target)} 字节，{len(SIZES)} 个尺寸）")
-
-    # 托盘图标：单独的 16 / 32 两份
-    assets = os.path.join(os.path.dirname(here), "src", "assets")
-    os.makedirs(assets, exist_ok=True)
-    for size, name in ((16, "tray.png"), (32, "tray@2x.png")):
-        out = os.path.join(assets, name)
-        with open(out, "wb") as fh:
-            fh.write(png_bytes(size, bars=TRAY_BARS))
-        print(f"生成 {out}（{size}x{size}，{os.path.getsize(out)} 字节）")
+    here = os.path.dirname(os.path.abspath(__file__))          # <repo>/src-tauri/tools
+    repo = os.path.dirname(os.path.dirname(here))               # <repo>
+    tauri_icons = os.path.join(repo, "src-tauri", "icons")
+    os.makedirs(tauri_icons, exist_ok=True)
 
     # Tauri 需要在 src-tauri/icons 下放 PNG（窗口/任务栏/托盘）+ ico（安装包）
-    tauri_icons = os.path.join(os.path.dirname(here), "src-tauri", "icons")
-    os.makedirs(tauri_icons, exist_ok=True)
     for size, name in (
         (32, "32x32.png"),
         (128, "128x128.png"),
@@ -212,7 +201,6 @@ if __name__ == "__main__":
             fh.write(png_bytes(size))
         print(f"生成 {out}（{size}x{size}，{os.path.getsize(out)} 字节）")
 
-    with open(os.path.join(tauri_icons, "icon.ico"), "wb") as fh:
-        with open(target, "rb") as src:
-            fh.write(src.read())
-    print(f"生成 {os.path.join(tauri_icons, 'icon.ico')}（复用 build/icon.ico）")
+    ico = os.path.join(tauri_icons, "icon.ico")
+    write_ico(ico)
+    print(f"生成 {ico}（{os.path.getsize(ico)} 字节，{len(SIZES)} 个尺寸）")

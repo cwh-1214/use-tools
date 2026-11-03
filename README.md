@@ -91,11 +91,6 @@ npm run test:all   # 两层一起跑
 ```
 use-tools/
 ├── package.json
-├── build/
-│   ├── icon.ico               应用图标（7 个尺寸，由脚本生成）
-│   └── make-icon.py           纯标准库生成 ico，不依赖 Pillow
-├── scripts/
-│   └── e2e.js                 端到端测试编排（起 Tauri 可执行文件跑场景脚本）
 ├── src/
 │   └── renderer/
 │       ├── index.html
@@ -121,12 +116,14 @@ use-tools/
 │               ├── index.js   界面与交互
 │               └── parse.js   纯清洗/切分/拼装逻辑（不依赖 DOM，便于测试）
 ├── test/
+│   ├── run-e2e.js             端到端测试编排（起 Tauri 可执行文件跑场景脚本）
 │   ├── xlsx.test.js           xlsx 生成器断言（纯 Node，不需要浏览器）
 │   ├── e2e/                   注入页面的端到端场景（每个工具一个同名脚本）
 │   ├── fixtures/              测试用的样例文件（按场景名建子目录）
 │   └── output/                测试报告与产物（已 gitignore）
 ├── dist/                      打包产物（已 gitignore）
 ├── src-tauri/                 Tauri 外壳（Rust 主进程 + 配置，见文末）
+│   └── tools/make-icon.py     图标生成（纯标准库，不依赖 Pillow）
 └── docs/
     └── 开发笔记.md             架构决策、约定、后续待办
 ```
@@ -232,7 +229,7 @@ src-tauri/
 ├── Cargo.toml / build.rs
 ├── tauri.conf.json            窗口、CSP、安装包配置（前端目录直接指向 ../src/renderer）
 ├── capabilities/default.json  只开事件监听，其余能力都走自定义命令
-├── icons/                     由 build/make-icon.py 一并生成
+├── icons/                     由 tools/make-icon.py 一并生成
 └── src/
     ├── main.rs                入口（发布版不弹控制台）
     ├── lib.rs                 窗口、托盘、全局快捷键、单实例、窗口几何记忆
@@ -254,7 +251,7 @@ src-tauri/
 
 > 已知限制：`tauri build` 的最后一步要从 GitHub 下载 NSIS 工具链，国内直连会被掐断（报 `peer closed connection` 或代理 502）。**exe 本身不需要它**，拿到 `target/release/use-tools.exe` 就能直接用；要安装包时开代理再跑一次即可，工具链会缓存在 `%LOCALAPPDATA%\tauri`。
 
-- **图标**：`build/make-icon.py` 用 Python 标准库生成 7 个尺寸的 `build/icon.ico`（不依赖 Pillow），改配色就改脚本顶部的常量再跑一次。
+- **图标**：`src-tauri/tools/make-icon.py` 用 Python 标准库生成 `src-tauri/icons/` 下的 PNG 与多尺寸 ico（不依赖 Pillow），改配色就改脚本顶部的常量再跑一次。
 - **未签名**：没配代码签名证书，Windows 首次运行会弹「未知发布者」，点「更多信息 → 仍要运行」即可。自己用不用管，要分发就得买张证书。
 
 打包完想确认产物真能跑（而不是只看到「构建成功」），直接让它自己冒烟：
