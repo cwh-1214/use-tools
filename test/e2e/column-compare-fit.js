@@ -73,6 +73,26 @@
   assert('恢复 100 后 20 行全部展示', rows().length, 20);
   assert('不再出现截断提示', Boolean(document.querySelector('.data-list .list-empty')), false);
 
+  // ---------------- 空态：提示语在列表里上下居中 ----------------
+  const filter = document.querySelector('input[placeholder="在结果中筛选"]');
+  filter.value = 'ZZZ';
+  filter.dispatchEvent(new Event('input'));
+  await sleep(200);
+
+  const emptyEl = document.querySelector('.data-list .list-empty');
+  assert('筛选无结果时出现空态', Boolean(emptyEl), true);
+  const listRect = list.getBoundingClientRect();
+  const emptyRect = emptyEl.getBoundingClientRect();
+  assert(
+    '空态提示上下居中',
+    Math.abs((emptyRect.top + emptyRect.bottom) / 2 - (listRect.top + listRect.bottom) / 2) <= 1.5,
+    true
+  );
+
+  filter.value = '';
+  filter.dispatchEvent(new Event('input'));
+  await sleep(200);
+
   // 等防抖落盘，避免把测试用过的 5 留在用户配置里
   await sleep(700);
 
@@ -98,5 +118,5 @@
     throw new Error(`${failures.length} 项断言失败：${failures.join(' | ')}`);
   }
 
-  return { ok: true, assertions: 19 };
+  return { ok: true, assertions: 21 };
 })();

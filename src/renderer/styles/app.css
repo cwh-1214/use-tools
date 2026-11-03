@@ -1075,6 +1075,18 @@
   font-family: var(--font-sans);
 }
 
+/* 空态（该分类没有数据 / 筛选无结果）时，提示语在列表里上下左右居中，
+   而不是贴着顶部；列表有内容时由 JS 摘掉 .is-empty */
+.data-list.is-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.data-list.is-empty .list-empty {
+  padding: 14px;
+}
+
 .checkbox {
   width: 15px;
   height: 15px;

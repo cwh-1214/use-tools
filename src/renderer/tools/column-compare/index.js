@@ -670,6 +670,8 @@ export default {
       function renderList() {
         clear(listEl);
         const matched = filteredValues();
+        // 空态时列表变成居中容器（见 styles/app.css），有行时要摘掉
+        listEl.classList.toggle('is-empty', matched.length === 0);
 
         if (matched.length === 0) {
           listEl.append(
