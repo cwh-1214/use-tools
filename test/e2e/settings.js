@@ -74,6 +74,13 @@
   assert('再次进入设置页仍正常', document.getElementById('tool-title').textContent, '设置');
   assert('空状态行不占位', getComputedStyle(document.querySelector('.status')).display, 'none');
 
+  // 设置页 → 已缓存的工具：设置页是「按次挂载」的，离开时必须从视图里清掉，
+  // 否则会和缓存的工具页叠在一起（用户看到的“设置没有关闭”）
+  location.hash = '#/json-format';
+  await sleep(400);
+  assert('离开设置后只剩一个工具视图', document.querySelectorAll('#tool-view .tool-body').length, 1);
+  assert('设置页内容已从视图移除', document.querySelectorAll('#tool-view .sett-value').length, 0);
+
   // ---------------- 按键映射 ----------------
   // 录制快捷键时把 KeyboardEvent 转成 accelerator，两端解析同一套写法
   const { acceleratorFromEvent } = await import('./settings.js');

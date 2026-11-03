@@ -159,6 +159,9 @@ function mountTool(tool) {
   // 之前挂过：原样接回来，数据、筛选、滚动位置都还在
   const cached = mountedTools.get(tool.id);
   if (cached) {
+    // 设置页是「按次挂载」的，离开时它的 DOM 还留在视图里；
+    // 不清掉的话，从设置切回已缓存的工具会看到两页叠在一起
+    clear(els.view);
     els.view.append(cached.root);
     els.view.scrollTop = cached.scrollTop || 0;
     els.actions.append(...cached.actionNodes);
