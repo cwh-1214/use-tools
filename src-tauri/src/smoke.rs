@@ -66,10 +66,24 @@ const SMOKE_JS: &str = r#"(async () => {
         const encLabels = [...document.querySelectorAll('.opt-row .seg')]
             .map(seg => [...seg.querySelectorAll('button')].map(b => b.textContent))
             .find(labels => labels.includes('UTF-8')) || [];
+
+        // 「分隔符」与「取第几列」在默认宽度下应落在同一行
+        const itemByLabel = (text) => [...document.querySelectorAll('.opt-item')]
+            .find(el => (el.querySelector('.opt-label') || {}).textContent === text);
+        const centerY = (el) => {
+            const r = el.getBoundingClientRect();
+            return r.top + r.height / 2;
+        };
+        const delimItem = itemByLabel('分隔符');
+        const columnItem = itemByLabel('取第几列');
+        const sameRow = !!delimItem && !!columnItem &&
+            Math.abs(centerY(delimItem) - centerY(columnItem)) < 12;
+
         await report('C2', {
             desc: (document.getElementById('tool-desc') || {}).textContent || '',
             encoding: encLabels,
-            mentionsXlsx: (document.body.innerText || '').includes('xlsx')
+            mentionsXlsx: (document.body.innerText || '').includes('xlsx'),
+            sameRow
         });
 
         // C3：切换菜单后页面数据要保留（工具常驻，不重建）
@@ -171,6 +185,7 @@ pub fn attach(app: &AppHandle) {
             && has("\"kept\":true")
             && has("\"views\":1")
             && has("\"mentionsXlsx\":true")
+            && has("\"sameRow\":true")
             && has("\"encoding\":[\"自动\",\"UTF-8\",\"ANSI\"]")
             && has("\"registered\":true")
             && has("\"ok\":true")

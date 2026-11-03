@@ -36,6 +36,24 @@
     .find((label) => ['自动', 'UTF-8', 'ANSI'].includes(label));
   assert('编码默认选自动', activeEncoding, '自动');
 
+  // 默认窗口宽度下（面板约 797px），「分隔符」与「取第几列」应落在同一行
+  const itemByLabel = (text) =>
+    Array.from(document.querySelectorAll('.opt-item')).find(
+      (item) => item.querySelector('.opt-label')?.textContent === text
+    );
+  const centerY = (el) => {
+    const r = el.getBoundingClientRect();
+    return r.top + r.height / 2;
+  };
+  const delimItem = itemByLabel('分隔符');
+  const columnItem = itemByLabel('取第几列');
+  assert('分隔符与取第几列都存在', Boolean(delimItem && columnItem), true);
+  assert(
+    '分隔符与取第几列在同一行',
+    Math.abs(centerY(delimItem) - centerY(columnItem)) < 12,
+    true
+  );
+
   // ---------------- 选两个 xlsx 文件 ----------------
   const slots = Array.from(document.querySelectorAll('.file-slot'));
   const pickBtn = (slot) =>

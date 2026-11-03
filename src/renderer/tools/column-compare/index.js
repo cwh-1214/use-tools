@@ -703,16 +703,18 @@ export default {
         slotA.el,
         slotB.el,
       ]),
-      // 与 SQL IN 一致的选项面板：一行一个设置，标签左对齐，右侧放内容级操作
+      // 与 SQL IN 一致的选项面板：标签左对齐，右侧放内容级操作。
+      // 「分隔符 + 取第几列」都属于怎么取值，宽度够就排在同一行；
+      // 编码与开关放第二行——否则切到「自定义」多出输入框时会把这一行挤散
       h('div', { class: 'card opt-panel' }, [
         h('div', { class: 'opt-group' }, [
           h('div', { class: 'opt-group-title' }, ['比对规则']),
           h('div', { class: 'opt-row' }, [
             optItem('分隔符', [delimGroup, customWrap]),
+            optItem('取第几列', [columnInput]),
           ]),
           h('div', { class: 'opt-row' }, [
-            optItem('取第几列', [columnInput]),
-            optItem('编码', [encodingGroup], 'opt-label opt-label-sep'),
+            optItem('编码', [encodingGroup]),
             h('div', { class: 'opt-item' }, [
               h('label', { class: 'check-label' }, [ignoreCaseBox, '忽略大小写']),
             ]),
