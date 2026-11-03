@@ -23,7 +23,15 @@ const els = {
 
 let keyword = '';
 let activeToolId = null;
-let cleanupCurrent = null;
+
+/**
+ * 已挂载的工具：切换菜单时**不销毁**，只把它的 DOM 从文档里摘下来留着。
+ * 这样输入框内容、比对结果、筛选条件、滚动位置全都原样保留，
+ * 切回来是「接着用」而不是「重新打开一个空白页」。
+ * 工具数量是个位数，全部常驻的内存代价可以忽略。
+ */
+const mountedTools = new Map(); // toolId -> { root, actionNodes, cleanup, scrollTop }
+let settingsCleanup = null;
 
 // ---------------------------------------------------------------------------
 // 侧边栏
@@ -61,25 +69,51 @@ function renderSidebar() {
 }
 
 // ---------------------------------------------------------------------------
-// 工具挂载 / 卸载
+// 工具挂载 / 收起
 // ---------------------------------------------------------------------------
-function unmountCurrent() {
-  if (typeof cleanupCurrent === 'function') {
+/**
+ * 把当前工具「收起来」：视图与顶栏按钮从文档摘下，但节点与状态都留着。
+ * 不调用工具的清理函数——清理意味着数据丢失，那正是这次要避免的。
+ */
+function detachCurrent() {
+  if (!activeToolId) return;
+
+  const entry = mountedTools.get(activeToolId);
+  if (entry) {
+    // 顶栏按钮是工具自己 append 进来的，按节点逐个摘下，顺序不变
+    entry.actionNodes = Array.from(els.actions.children);
+    for (const node of entry.actionNodes) node.remove();
+
+    entry.scrollTop = els.view.scrollTop;
+    if (entry.root.parentNode) entry.root.remove();
+  }
+
+  activeToolId = null;
+}
+
+/** 彻底销毁（目前只在需要重置状态时用得到，切换菜单不走这里） */
+function disposeTool(toolId) {
+  const entry = mountedTools.get(toolId);
+  if (!entry) return;
+
+  if (typeof entry.cleanup === 'function') {
     try {
-      cleanupCurrent();
+      entry.cleanup();
     } catch (err) {
       console.warn('[app] 工具清理函数报错', err);
     }
   }
-  cleanupCurrent = null;
-  clear(els.actions);
+  entry.root.remove();
+  for (const node of entry.actionNodes) node.remove();
+  mountedTools.delete(toolId);
 }
 
 function renderWelcome() {
-  activeToolId = null;
-  unmountCurrent();
+  detachCurrent();
+  closeSettings();
   els.title.textContent = '工具集';
   els.desc.textContent = '从左侧选择一个工具';
+  clear(els.actions);
   clear(els.view);
 
   els.view.append(
@@ -113,12 +147,24 @@ function renderToolError(tool, err) {
 }
 
 function mountTool(tool) {
+  detachCurrent();
+  closeSettings();
   activeToolId = tool.id;
   renderSidebar();
   recordRoute(tool.id);
 
   els.title.textContent = tool.name;
   els.desc.textContent = tool.desc || '';
+
+  // 之前挂过：原样接回来，数据、筛选、滚动位置都还在
+  const cached = mountedTools.get(tool.id);
+  if (cached) {
+    els.view.append(cached.root);
+    els.view.scrollTop = cached.scrollTop || 0;
+    els.actions.append(...cached.actionNodes);
+    return;
+  }
+
   clear(els.actions);
   clear(els.view);
 
@@ -127,7 +173,12 @@ function mountTool(tool) {
 
   try {
     const cleanup = tool.mount({ root, api: window.api, actions: els.actions, tool });
-    cleanupCurrent = typeof cleanup === 'function' ? cleanup : null;
+    mountedTools.set(tool.id, {
+      root,
+      actionNodes: [],
+      cleanup: typeof cleanup === 'function' ? cleanup : null,
+      scrollTop: 0,
+    });
   } catch (err) {
     renderToolError(tool, err);
   }
@@ -137,16 +188,29 @@ function mountTool(tool) {
 // 设置页：#/settings（不是工具，由外壳直接挂载）
 // ---------------------------------------------------------------------------
 function renderSettingsPage() {
-  activeToolId = null;
-  unmountCurrent();
+  detachCurrent();
+  closeSettings();
   els.title.textContent = '设置';
   els.desc.textContent = '快捷键、托盘行为与外观';
+  clear(els.actions);
   clear(els.view);
   renderSidebar();
 
   const root = h('div', { class: 'tool-body' });
   els.view.append(root);
-  cleanupCurrent = mountSettings({ root, api: window.api });
+  settingsCleanup = mountSettings({ root, api: window.api });
+}
+
+/** 设置页是「每次进入重新建」的，离开时要清理；工具页则常驻不走这里 */
+function closeSettings() {
+  if (typeof settingsCleanup === 'function') {
+    try {
+      settingsCleanup();
+    } catch (err) {
+      console.warn('[app] 设置页清理报错', err);
+    }
+  }
+  settingsCleanup = null;
 }
 
 // ---------------------------------------------------------------------------
@@ -167,16 +231,17 @@ function route() {
 
   const tool = findTool(tools, id);
   if (!tool) {
-    unmountCurrent();
+    detachCurrent();
+    closeSettings();
     els.title.textContent = '未找到工具';
     els.desc.textContent = id;
+    clear(els.actions);
     clear(els.view);
     renderSidebar();
     return;
   }
 
-  if (tool.id !== activeToolId) unmountCurrent();
-  mountTool(tool);
+  if (tool.id !== activeToolId) mountTool(tool);
 }
 
 // ---------------------------------------------------------------------------

@@ -72,6 +72,24 @@ const SMOKE_JS: &str = r#"(async () => {
             mentionsXlsx: (document.body.innerText || '').includes('xlsx')
         });
 
+        // C3：切换菜单后页面数据要保留（工具常驻，不重建）
+        location.hash = '#/json-format';
+        await new Promise(done => setTimeout(done, 600));
+        const keepBox = document.querySelector('#tool-view textarea');
+        if (keepBox) {
+            keepBox.value = '{"keep":1}';
+            keepBox.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        await new Promise(done => setTimeout(done, 400));
+        location.hash = '#/base64';
+        await new Promise(done => setTimeout(done, 400));
+        location.hash = '#/json-format';
+        await new Promise(done => setTimeout(done, 400));
+        await report('C3', {
+            kept: ((document.querySelector('#tool-view textarea') || {}).value) === '{"keep":1}',
+            views: document.querySelectorAll('#tool-view > .tool-body').length
+        });
+
         // D：真实走一次 IPC（settings.get 走 invoke → Rust 命令）
         try {
             const settings = await window.api.settings.get();
@@ -149,6 +167,9 @@ pub fn attach(app: &AppHandle) {
             && has("\"phase\":\"S\"")
             && has("\"phase\":\"H\"")
             && has("\"phase\":\"C2\"")
+            && has("\"phase\":\"C3\"")
+            && has("\"kept\":true")
+            && has("\"views\":1")
             && has("\"mentionsXlsx\":true")
             && has("\"encoding\":[\"自动\",\"UTF-8\",\"ANSI\"]")
             && has("\"registered\":true")
