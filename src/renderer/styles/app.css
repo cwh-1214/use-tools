@@ -435,6 +435,69 @@
   min-height: 100%;
 }
 
+/* 「一屏收口」的页面（列比对）：高度刚好等于视口，不产生整页纵向滚动条。
+   结果列表按剩余空间自适应，数据再多也只是列表内部滚动 */
+.tool-body.is-fill {
+  height: 100%;
+  min-height: 0;
+  gap: 12px;
+}
+
+/* 各块一起收紧一点，把省下来的高度让给结果列表 */
+.tool-body.is-fill .split {
+  gap: 12px;
+  /* 这里两侧只是「文件槽位」，比文本域窄得多，不必等到 1000px 才并排；
+     窗口再窄（<672px 内容宽）才落成一列 */
+  grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
+}
+
+.tool-body.is-fill .file-slot {
+  padding: 10px 13px;
+}
+
+.tool-body.is-fill .opt-panel {
+  padding: 10px 14px;
+}
+
+.tool-body.is-fill .stats {
+  gap: 8px;
+}
+
+.tool-body.is-fill .stat {
+  padding: 8px 12px;
+}
+
+.tool-body.is-fill .stat-num {
+  font-size: 18px;
+  line-height: 1.3;
+}
+
+.tool-body.is-fill .tab {
+  padding: 6px 12px;
+}
+
+/* 固定块不参与收缩，压力全部给结果列表 */
+.tool-body.is-fill > .opt-panel,
+.tool-body.is-fill > .status,
+.tool-body.is-fill > .stats,
+.tool-body.is-fill > .hint {
+  flex: none;
+}
+
+/* 窗口矮到连「标签页 + 工具条 + 最小列表」都放不下时，退回普通文档流：
+   宁可整页滚动，也不要让底部说明压在列表上 */
+@media (max-height: 650px) {
+  .tool-body.is-fill {
+    height: auto;
+    min-height: 100%;
+  }
+
+  .tool-body.is-fill .data-list {
+    flex: none;
+    max-height: 240px;
+  }
+}
+
 .toolbar {
   display: flex;
   align-items: center;
@@ -975,6 +1038,16 @@
 }
 
 /* ---------------- 数据列表 ---------------- */
+/* 结果区：标签页与工具条保持原高，列表吃掉剩下的高度。
+   min-height:0 是关键——否则内容会把面板顶回自然高度，整页又出现滚动条 */
+.result-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
 .data-list {
   max-height: 330px;
   overflow-y: auto;
@@ -987,14 +1060,21 @@
   font-size: 13px;
 }
 
+/* 一屏收口的页面里，列表不再用固定上限，而是跟着视口伸缩：
+   内容少时保持自然高度，内容多时压到剩余空间并内部滚动 */
+.tool-body.is-fill .data-list {
+  flex: 0 1 auto;
+  min-height: 64px;
+  max-height: none;
+}
+
 /* 长值换行显示而不是横向滚动：横条会占掉 11px 高度，卡片会跟着收缩 */
 .data-list .row {
-  padding: 3px 12px;
-  line-height: 1.5;
+  padding: 2px 12px;
   border-bottom: 1px solid var(--row-line);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  line-height: 1.55;
+  line-height: 1.5;
 }
 
 .data-list .row:nth-child(even) {

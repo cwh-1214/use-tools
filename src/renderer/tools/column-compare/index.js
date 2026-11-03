@@ -62,6 +62,10 @@ export default {
   keywords: ['compare', 'diff', 'column', '比对', '对比', '差异', '列', '粘贴', 'txt', 'csv'],
 
   mount({ root, api, actions }) {
+    // 结果一多就容易把整页撑出纵向滚动条。标记为「一屏收口」页面：
+    // body 撑满视口，列表只吃剩余高度、在自己内部滚动
+    root.classList.add('is-fill');
+
     const state = {
       sources: {
         A: { mode: 'file', file: null, text: '', scan: null },
@@ -553,7 +557,7 @@ export default {
     }
 
     // ------------------------------------------------------------ 结果
-    const resultEl = h('div', { style: { display: 'none' } });
+    const resultEl = h('div', { class: 'result-pane', style: { display: 'none' } });
 
     const EXPORT_NAMES = {
       onlyInA: 'A有B没有.txt',
@@ -662,7 +666,7 @@ export default {
 
       resultEl.append(
         tabs,
-        h('div', { class: 'toolbar', style: { marginTop: '10px' } }, [
+        h('div', { class: 'toolbar' }, [
           filterInput,
           h('span', { class: 'hint' }, [state.filter ? `筛选出 ${fmtNum(filteredValues().length)} 条` : '']),
           h('div', { class: 'spacer' }),
