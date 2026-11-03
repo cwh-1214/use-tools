@@ -5,7 +5,7 @@ import { isAllowedFile, extensionList } from '../../core/files.js';
 // 只收纯文本类的 JSON；xlsx / pdf 这类二进制文件读出来是乱码，直接挡在门外
 const IMPORT_EXTENSIONS = ['json', 'txt'];
 
-const SAMPLE = '{"name":"use-tools","version":"0.1.0","features":["json","base64","timestamp"],"ready":true}';
+const SAMPLE = '{"name":"use-tools","version":"0.1.1","features":["json","base64","timestamp"],"ready":true}';
 
 function stringify(value, indent) {
   return JSON.stringify(value, null, indent);

@@ -8,7 +8,7 @@
 
 ## 下载
 
-不想装工具链就直接下绿色版：[Releases](https://github.com/cwh-1214/use-tools/releases/latest) 里的 `use-tools-0.1.0.exe`，单文件 4.2 MB，双击即用。
+不想装工具链就直接下绿色版：[Releases](https://github.com/cwh-1214/use-tools/releases/latest) 里的 `use-tools-0.1.1.exe`，单文件 4.2 MB，双击即用。
 
 - 系统要求：Windows 10/11（用系统自带的 WebView2 运行时，Win11 已内置，Win10 若缺会自动提示安装）
 - 免安装、不写注册表；设置与窗口位置存在 `%APPDATA%\com.usertools.desktop\settings.json`
