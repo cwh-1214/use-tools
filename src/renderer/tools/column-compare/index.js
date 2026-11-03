@@ -40,7 +40,8 @@ const TABS = [
   { id: 'all', label: '合并去重' },
 ];
 
-const DISPLAY_LIMIT = 500; // 列表最多渲染这么多行，复制/导出始终是完整数据
+const DISPLAY_LIMIT_DEFAULT = 100; // 列表默认只渲染这么多行，复制/导出始终是完整数据
+const DISPLAY_LIMIT_MAX = 2000; // 再大就纯属和自己过不去：几千个 DOM 节点切标签页会卡
 const AUTO_RUN_DELAY = 320; // 实时比对的防抖间隔
 
 const fmtNum = (n) => (Number.isFinite(n) ? n.toLocaleString('zh-CN') : '—');
@@ -76,6 +77,7 @@ export default {
       column: 1,
       encoding: 'auto',
       ignoreCase: false,
+      displayLimit: DISPLAY_LIMIT_DEFAULT,
       result: null,
       activeTab: 'onlyInA',
       filter: '',
@@ -83,6 +85,8 @@ export default {
 
     let runSeq = 0;
     let runTimer = null;
+    // 交给「展示行数」输入框调用：只重建列表，不动标签页与筛选框（否则输入焦点会丢）
+    let refreshList = () => {};
 
     const hasData = (mark) => {
       const source = state.sources[mark];
@@ -466,6 +470,28 @@ export default {
       },
     });
 
+    // 只控制列表渲染多少行：复制与导出始终是全量，所以不需要重新扫描
+    const displayLimitInput = h('input', {
+      class: 'input input-inline',
+      type: 'number',
+      min: '1',
+      max: String(DISPLAY_LIMIT_MAX),
+      step: '1',
+      value: String(state.displayLimit),
+      dataset: { role: 'display-limit' },
+      onInput: (event) => {
+        const next = parseInt(event.target.value, 10);
+        // 输入过程中可能是空的，先不动；失焦时再纠正成真正生效的值
+        if (!Number.isFinite(next) || next < 1) return;
+        state.displayLimit = Math.min(Math.floor(next), DISPLAY_LIMIT_MAX);
+        persistConfig();
+        refreshList();
+      },
+      onBlur: (event) => {
+        event.target.value = String(state.displayLimit);
+      },
+    });
+
     // 用 margin-left:auto 靠右，而不是插一个 .spacer：
     // 窄屏换行时按钮会跟着到下一行并保持右对齐，不会孤零零贴在左边
     const rerunBtn = h(
@@ -488,6 +514,7 @@ export default {
             column: state.column,
             encoding: state.encoding,
             ignoreCase: state.ignoreCase,
+            displayLimit: state.displayLimit,
           })
           .catch(() => {});
       } catch {
@@ -502,6 +529,7 @@ export default {
       columnInput.value = String(state.column);
       setSegValue(encodingGroup, state.encoding);
       ignoreCaseBox.checked = state.ignoreCase;
+      displayLimitInput.value = String(state.displayLimit);
     }
 
     // 选项变化都要在 UI 上有所反映，这里集中做「state → 界面」的同步，
@@ -517,6 +545,9 @@ export default {
         if (Number.isFinite(saved.column) && saved.column > 0) state.column = saved.column;
         if (['auto', 'utf-8', 'gbk'].includes(saved.encoding)) state.encoding = saved.encoding;
         if (typeof saved.ignoreCase === 'boolean') state.ignoreCase = saved.ignoreCase;
+        if (Number.isFinite(saved.displayLimit) && saved.displayLimit > 0) {
+          state.displayLimit = Math.min(Math.floor(saved.displayLimit), DISPLAY_LIMIT_MAX);
+        }
         applyConfigUI();
       })
       .catch(() => {});
@@ -579,6 +610,7 @@ export default {
       clear(resultEl);
       if (!state.result) {
         resultEl.style.display = 'none';
+        refreshList = () => {};
         return;
       }
       resultEl.style.display = '';
@@ -648,7 +680,7 @@ export default {
           return;
         }
 
-        const shown = matched.slice(0, DISPLAY_LIMIT);
+        const shown = matched.slice(0, state.displayLimit);
         for (const value of shown) {
           listEl.append(h('div', { class: 'row' }, [value]));
         }
@@ -662,6 +694,7 @@ export default {
         }
       }
 
+      refreshList = renderList;
       renderList();
 
       resultEl.append(
@@ -709,7 +742,7 @@ export default {
       ]),
       // 与 SQL IN 一致的选项面板：标签左对齐，右侧放内容级操作。
       // 「分隔符 + 取第几列」都属于怎么取值，宽度够就排在同一行；
-      // 编码与开关放第二行——否则切到「自定义」多出输入框时会把这一行挤散
+      // 编码、忽略大小写、展示行数放第二行——否则切到「自定义」多出输入框时会把这一行挤散
       h('div', { class: 'card opt-panel' }, [
         h('div', { class: 'opt-group' }, [
           h('div', { class: 'opt-group-title' }, ['比对规则']),
@@ -721,6 +754,11 @@ export default {
             optItem('编码', [encodingGroup]),
             h('div', { class: 'opt-item' }, [
               h('label', { class: 'check-label' }, [ignoreCaseBox, '忽略大小写']),
+            ]),
+            // 比「忽略大小写」多留一点间距：这是展示设置，不是比对口径
+            h('div', { class: 'opt-item', style: { marginLeft: '8px' } }, [
+              h('span', { class: 'opt-label' }, ['展示行数']),
+              displayLimitInput,
             ]),
             rerunBtn,
           ]),

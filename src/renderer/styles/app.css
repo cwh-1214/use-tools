@@ -484,17 +484,43 @@
   flex: none;
 }
 
-/* 窗口矮到连「标签页 + 工具条 + 最小列表」都放不下时，退回普通文档流：
-   宁可整页滚动，也不要让底部说明压在列表上 */
-@media (max-height: 650px) {
-  .tool-body.is-fill {
-    height: auto;
-    min-height: 100%;
+/* 窗口矮时：统计卡压成一行摘要（标签页与状态行本来就给了同样的数字），
+   把高度让给结果列表——比整页出滚动条体面得多 */
+@media (max-height: 600px) {
+  .tool-body.is-fill .stats {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px 14px;
+  }
+
+  .tool-body.is-fill .stat {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 5px;
+    padding: 0;
+    border: 0;
+    background: none;
+    box-shadow: none;
+  }
+
+  .tool-body.is-fill .stat-num {
+    font-size: 13.5px;
+  }
+
+  .tool-body.is-fill .stat-lbl {
+    font-size: 12px;
+  }
+}
+
+/* 矮窗口：底部说明先收起来，优先保证列表里能看见几行数据 */
+@media (max-height: 670px) {
+  .tool-body.is-fill > .hint {
+    display: none;
   }
 
   .tool-body.is-fill .data-list {
-    flex: none;
-    max-height: 240px;
+    min-height: 48px;
   }
 }
 

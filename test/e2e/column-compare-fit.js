@@ -46,9 +46,46 @@
   assert('底部说明排在列表下方、没有压住列表', hintBox.top >= listBox.bottom - 1, true);
   assert('列表底部不超出可视区域', listBox.bottom <= view.getBoundingClientRect().bottom, true);
 
+  // ---------------- 展示行数：默认 100，改小只影响列表 ----------------
+  const rows = () => Array.from(document.querySelectorAll('.data-list .row')).map((el) => el.textContent);
+  const limitInput = document.querySelector('input[data-role="display-limit"]');
+  assert('展示行数输入框存在', Boolean(limitInput), true);
+  assert('展示行数默认 100', limitInput.value, '100');
+
+  limitInput.value = '5';
+  limitInput.dispatchEvent(new Event('input'));
+  await sleep(250);
+
+  assert('改成 5 后列表只渲染 5 行', rows().length, 5);
+  const note = document.querySelector('.data-list .list-empty')?.textContent || '';
+  assert('截断提示说明总数与展示条数', note.includes('共 20 条') && note.includes('仅显示前 5 条'), true);
+  assert('改展示行数不影响统计结果', stats(), ['400', '400', '20', '20', '380', '420']);
+
+  limitInput.value = '100';
+  limitInput.dispatchEvent(new Event('input'));
+  await sleep(250);
+  assert('恢复 100 后 20 行全部展示', rows().length, 20);
+  assert('不再出现截断提示', Boolean(document.querySelector('.data-list .list-empty')), false);
+
+  // 等防抖落盘，避免把测试用过的 5 留在用户配置里
+  await sleep(700);
+
+  // ---------------- 矮窗口：统计卡让位，但仍然不许出整页滚动条 ----------------
+  window.resizeTo(1180, 620);
+  await sleep(700);
+
+  const statsEl = document.querySelector('.stats');
+  assert('矮窗口没有整页滚动条', view.scrollHeight <= view.clientHeight + 1, true);
+  assert('矮窗口统计卡收成一行', getComputedStyle(statsEl).display, 'flex');
+  assert('矮窗口列表仍能露出数据', list.clientHeight >= 40, true);
+
+  window.resizeTo(1180, 760);
+  await sleep(700);
+  assert('窗口恢复后统计卡还原成卡片', getComputedStyle(statsEl).display, 'grid');
+
   if (failures.length > 0) {
     throw new Error(`${failures.length} 项断言失败：${failures.join(' | ')}`);
   }
 
-  return { ok: true, assertions: 8 };
+  return { ok: true, assertions: 18 };
 })();
