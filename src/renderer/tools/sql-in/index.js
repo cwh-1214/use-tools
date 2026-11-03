@@ -124,7 +124,7 @@ export default {
     // 自定义分隔符：标签和输入框打包在一起，显示/隐藏时整块出现，
     // 输入框用 .input-sm 与分段控件同高（26px），避免出现时把整行撑高
     const customWrap = h('div', { class: 'opt-inline', style: { display: 'none' } }, [
-      h('span', { class: 'opt-label opt-label-sep' }, ['自定义分隔符']),
+      h('span', { class: 'opt-label opt-label-gap' }, ['自定义分隔符']),
       h('input', {
         class: 'input input-sm',
         style: { width: '110px' },
@@ -435,43 +435,50 @@ export default {
 
     // 选项面板：分「输入解析 / 输出内容」两类，标签写具体（不再只写“格式/切分”），
     // 每个选项的详细含义放在 title 里，鼠标悬停可看
-    const optRow = (label, children) =>
-      h('div', { class: 'opt-row' }, [h('span', { class: 'opt-label' }, [label]), ...children]);
-    const optGap = (label) => h('span', { class: 'opt-label opt-label-gap' }, [label]);
-    const optSep = (label) => h('span', { class: 'opt-label opt-label-sep' }, [label]);
+    // 一个「标签 + 它的控件」是不可拆的组：宽度够就并排，不够就整组换行，
+    // 不会出现「标签留在上一行、控件掉到下一行」的错位
+    const optItem = (label, children, labelClass = 'opt-label') =>
+      h('div', { class: 'opt-item' }, [
+        h('span', { class: labelClass }, [label]),
+        ...children,
+      ]);
+    const optRow = (...items) => h('div', { class: 'opt-row' }, items);
 
-    const directionRow = optRow('语句方向', [
-      negateSeg,
-      optGap('列名'),
-      columnInput,
-      optGap('分片'),
-      chunkInput,
-    ]);
+    const directionRow = optRow(
+      optItem('语句方向', [negateSeg]),
+      optItem('列名', [columnInput], 'opt-label opt-label-gap'),
+      optItem('分片', [chunkInput], 'opt-label opt-label-gap')
+    );
     inOnlyRows.push(directionRow);
 
     const optionsCard = h('div', { class: 'card opt-panel' }, [
       h('div', { class: 'opt-group' }, [
         h('div', { class: 'opt-group-title' }, ['输入解析']),
-        // 分段控件单独占一行；自定义分隔符挪到下一行，
-        // 否则 7 个选项 + 输入框会超出 848px 折成两行，点一下整页往下跳
-        optRow('切分方式', [separatorSeg]),
-        optRow('文本编码', [
-          encodingSeg,
-          h('span', { class: 'opt-note' }, ['仅导入文件时生效']),
-          customWrap,
-        ]),
+        optRow(optItem('切分方式', [separatorSeg])),
+        // 自定义分隔符是独立的一组，窄屏时整组换行，不挤在同一行里
+        optRow(
+          optItem('文本编码', [
+            encodingSeg,
+            h('span', { class: 'opt-note' }, ['仅导入文件时生效']),
+          ]),
+          customWrap
+        ),
       ]),
       h('div', { class: 'opt-group' }, [
         h('div', { class: 'opt-group-title' }, ['输出内容']),
-        // 「数字不加引号 / 去重」是对最终结果的整体处理，跟着输出格式放
-        optRow('输出格式', [
-          modeSeg,
-          h('div', { class: 'opt-inline', style: { marginLeft: '4px' } }, [
+        // 「数字不加引号 / 去重」是对最终结果的整体处理，跟着输出格式放；
+        // 但它自己是一组：窄屏时整组换行，不会被挤成两行文字
+        optRow(
+          optItem('输出格式', [modeSeg]),
+          h('div', { class: 'opt-item' }, [
             h('label', { class: 'check-label' }, [numericBox, '数字不加引号']),
             h('label', { class: 'check-label' }, [dedupeBox, '去重']),
-          ]),
-        ]),
-        optRow('值引号', [quoteSeg, optSep('值排序'), sortSeg]),
+          ])
+        ),
+        optRow(
+          optItem('值引号', [quoteSeg]),
+          optItem('值排序', [sortSeg], 'opt-label opt-label-sep')
+        ),
         directionRow,
       ]),
     ]);

@@ -48,6 +48,22 @@
   location.hash = '#/sql-in';
   await sleep(500);
   assert('工具已挂载（两个编辑区）', textareas().length, 2);
+
+  // 分组布局：每个「标签 + 控件」必须处在同一行（不能被拆到两行去）
+  const splitGroups = Array.from(document.querySelectorAll('.opt-panel .opt-item')).filter((item) => {
+    const kids = Array.from(item.children)
+      .map((el) => el.getBoundingClientRect())
+      .filter((rect) => rect.width > 0);
+    if (kids.length < 2) return false;
+    const center = (rect) => rect.top + rect.height / 2;
+    return Math.abs(center(kids[0]) - center(kids[1])) > 12;
+  });
+  assert('每组「标签 + 控件」都在同一行', splitGroups.length, 0);
+  assert(
+    '所有选项组都包在 .opt-item 里',
+    document.querySelectorAll('.opt-row > :not(.opt-item):not(.opt-inline)').length,
+    0
+  );
   assert('初始输出为空', output().value, '');
   assert('初始状态提示', statusText(), '粘贴数据后自动转换');
 
@@ -121,7 +137,11 @@
 
   await click('IN 单行');
   await click('纯数据列'); // 纯数据列时应隐藏方向/分片
-  assert('纯数据列隐藏方向与分片', document.querySelector('.tool-view input[type="number"]').parentElement.style.display, 'none');
+  assert(
+    '纯数据列隐藏方向与分片',
+    document.querySelector('.tool-view input[type="number"]').closest('.opt-row').style.display,
+    'none'
+  );
 
   // ---------------- 阶段 9：值列表与引号策略 ----------------
   columnInput.value = '';

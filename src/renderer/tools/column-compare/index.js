@@ -424,6 +424,13 @@ export default {
       scheduleRun(0);
     });
 
+    // 一个「标签 + 它的控件」是不可拆的组：宽度够就并排，不够就整组换行
+    const optItem = (label, children, labelClass = 'opt-label') =>
+      h('div', { class: 'opt-item' }, [
+        h('span', { class: labelClass }, [label]),
+        ...children,
+      ]);
+
     const columnInput = h('input', {
       class: 'input input-inline',
       type: 'number',
@@ -455,7 +462,13 @@ export default {
       },
     });
 
-    const rerunBtn = h('button', { class: 'btn btn-sm', onClick: () => run() }, ['重新比对']);
+    // 用 margin-left:auto 靠右，而不是插一个 .spacer：
+    // 窄屏换行时按钮会跟着到下一行并保持右对齐，不会孤零零贴在左边
+    const rerunBtn = h(
+      'button',
+      { class: 'btn btn-sm', style: { marginLeft: 'auto' }, onClick: () => run() },
+      ['重新比对']
+    );
 
     // ------------------------------------------------------------ 配置记忆
     // 只记选项，不记数据：粘贴内容本质是临时物，文件可能被移动/删除。
@@ -695,17 +708,14 @@ export default {
         h('div', { class: 'opt-group' }, [
           h('div', { class: 'opt-group-title' }, ['比对规则']),
           h('div', { class: 'opt-row' }, [
-            h('span', { class: 'opt-label' }, ['分隔符']),
-            delimGroup,
-            customWrap,
+            optItem('分隔符', [delimGroup, customWrap]),
           ]),
           h('div', { class: 'opt-row' }, [
-            h('span', { class: 'opt-label' }, ['取第几列']),
-            columnInput,
-            h('span', { class: 'opt-label opt-label-sep' }, ['编码']),
-            encodingGroup,
-            h('label', { class: 'check-label', style: { marginLeft: '10px' } }, [ignoreCaseBox, '忽略大小写']),
-            h('div', { class: 'spacer' }),
+            optItem('取第几列', [columnInput]),
+            optItem('编码', [encodingGroup], 'opt-label opt-label-sep'),
+            h('div', { class: 'opt-item' }, [
+              h('label', { class: 'check-label' }, [ignoreCaseBox, '忽略大小写']),
+            ]),
             rerunBtn,
           ]),
         ]),
