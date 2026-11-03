@@ -341,6 +341,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::pick_file,
             commands::save_text,
+            commands::save_file,
             commands::read_text,
             commands::basename,
             commands::stat,

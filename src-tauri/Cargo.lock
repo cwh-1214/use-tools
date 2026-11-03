@@ -4408,6 +4408,7 @@ dependencies = [
 name = "use-tools"
 version = "0.1.0"
 dependencies = [
+ "base64 0.21.7",
  "calamine",
  "encoding_rs",
  "encoding_rs_io",

@@ -59,6 +59,8 @@ function runScenario(scenario) {
       SMOKE_FIXTURE_QUEUE: resolveFixtures(scenario).join(';'),
       SMOKE_SCRIPT: scriptPath,
       SMOKE_SHOT: path.join(outputDir, `${scenario}.png`),
+      // 保存对话框不弹窗，产物直接落到 test/output，便于断言
+      SMOKE_SAVE_DIR: outputDir,
     };
     delete env.ELECTRON_RUN_AS_NODE;
 

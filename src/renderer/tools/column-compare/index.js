@@ -1,5 +1,7 @@
 import { h, clear, formatBytes, debounce } from '../../core/dom.js';
 import { seg, setSegValue, statusBar } from '../../core/ui.js';
+import { isAllowedFile, extensionList } from '../../core/files.js';
+import { buildXlsx, bytesToBase64 } from '../../core/xlsx.js';
 
 /**
  * 列比对
@@ -27,6 +29,9 @@ const ENCODINGS = [
 
 /** 表格文件：按单元格读，分隔符与编码都不适用 */
 const isSheetPath = (name) => /\.(xlsx|xlsm)$/i.test(String(name || ''));
+
+/** 允许导入的类型：表格走单元格，其余按纯文本分列 */
+const IMPORT_EXTENSIONS = ['xlsx', 'xlsm', 'txt', 'csv', 'tsv', 'log', 'dat'];
 
 const SOURCE_MODES = [
   { id: 'file', label: '文件' },
@@ -306,13 +311,19 @@ export default {
         const filePath = await api.pickFile({
           title: `选择文件 ${mark}`,
           filters: [
-            { name: '表格与文本', extensions: ['xlsx', 'xlsm', 'txt', 'csv', 'tsv', 'log', 'dat'] },
-            { name: '所有文件', extensions: ['*'] },
+            {
+              name: `表格与文本（${extensionList(IMPORT_EXTENSIONS)}）`,
+              extensions: IMPORT_EXTENSIONS,
+            },
           ],
         });
         if (!filePath) return;
 
         const name = await api.basename(filePath);
+        if (!isAllowedFile(name, IMPORT_EXTENSIONS)) {
+          setStatus('err', `只能导入 ${extensionList(IMPORT_EXTENSIONS)} 文件，${name} 不支持`);
+          return;
+        }
         let size = 0;
         try {
           const info = await api.stat(filePath);
@@ -590,13 +601,6 @@ export default {
     // ------------------------------------------------------------ 结果
     const resultEl = h('div', { class: 'result-pane', style: { display: 'none' } });
 
-    const EXPORT_NAMES = {
-      onlyInA: 'A有B没有.txt',
-      onlyInB: 'B有A没有.txt',
-      inBoth: '两者共有.txt',
-      all: '合并去重.txt',
-    };
-
     const activeValues = () => (state.result ? state.result[state.activeTab] || [] : []);
 
     function filteredValues() {
@@ -718,21 +722,32 @@ export default {
       {
         class: 'btn btn-sm',
         onClick: async () => {
-          const values = activeValues();
-          if (values.length === 0) {
-            setStatus('err', '当前分类没有数据可导出');
+          if (!state.result) {
+            setStatus('err', '还没有比对结果');
             return;
           }
-          const saved = await api.saveText({
-            title: '导出比对结果',
-            defaultName: EXPORT_NAMES[state.activeTab] || 'result.txt',
-            filters: [{ name: '文本文件', extensions: ['txt'] }],
-            content: values.join('\r\n'),
-          });
-          if (saved) setStatus('ok', `已导出 ${fmtNum(values.length)} 条到 ${saved}`);
+          try {
+            // 四个分类各一个 sheet，写全量（不受「展示行数」限制）
+            const sheets = TABS.map((tab) => ({
+              name: tab.label,
+              values: state.result[tab.id] || [],
+            }));
+            const total = sheets.reduce((sum, sheet) => sum + sheet.values.length, 0);
+            const saved = await api.saveFile({
+              title: '保存比对结果',
+              defaultName: '列比对结果.xlsx',
+              filters: [{ name: 'Excel 工作簿', extensions: ['xlsx'] }],
+              dataBase64: bytesToBase64(buildXlsx(sheets)),
+            });
+            if (saved) {
+              setStatus('ok', `已保存 ${fmtNum(total)} 行到 ${saved}（4 个工作表）`);
+            }
+          } catch (err) {
+            setStatus('err', `保存失败：${err?.message || err}`);
+          }
         },
       },
-      ['导出本类全部']
+      ['保存结果']
     );
 
     actions.append(exportBtn);

@@ -110,6 +110,22 @@
     true
   );
 
+  // ---------------- 保存结果：4 个工作表的 xlsx ----------------
+  const saveBtn = Array.from(document.querySelectorAll('button')).find(
+    (b) => b.textContent.trim() === '保存结果'
+  );
+  assert('保存结果按钮存在', Boolean(saveBtn), true);
+
+  saveBtn.click();
+  await sleep(1200);
+
+  const savedText = document.querySelector('.status-text')?.textContent || '';
+  assert('保存成功的状态提示', /已保存 [\d,]+ 行到 .+（4 个工作表）/.test(savedText), true);
+
+  const savedPath = savedText.slice(savedText.indexOf('到 ') + 2, savedText.lastIndexOf('（'));
+  const savedInfo = await window.api.stat(savedPath);
+  assert('xlsx 已写盘且不是空壳', savedInfo.size > 2000, true);
+
   // 截一个全屏尺寸的图收尾
   window.resizeTo(1600, 890);
   await sleep(600);
@@ -118,5 +134,5 @@
     throw new Error(`${failures.length} 项断言失败：${failures.join(' | ')}`);
   }
 
-  return { ok: true, assertions: 21 };
+  return { ok: true, assertions: 24 };
 })();

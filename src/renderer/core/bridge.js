@@ -12,7 +12,8 @@ function createTauriApi(invoke, listen) {
   const call = (command, args) => invoke(command, args);
 
   return {
-    pickFile: (options) => call('pick_file', { args: { title: options?.title } }),
+    pickFile: (options) =>
+      call('pick_file', { args: { title: options?.title, filters: options?.filters } }),
 
     saveText: (options) =>
       call('save_text', {
@@ -20,6 +21,15 @@ function createTauriApi(invoke, listen) {
           title: options?.title,
           defaultName: options?.defaultName,
           content: options?.content,
+        },
+      }),
+
+    saveFile: (options) =>
+      call('save_file', {
+        args: {
+          title: options?.title,
+          defaultName: options?.defaultName,
+          dataBase64: options?.dataBase64,
         },
       }),
 

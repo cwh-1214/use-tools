@@ -3,6 +3,7 @@
 
 use crate::column_scan::{self, ScanOptions, ScanResult, TextScanOptions};
 use crate::AppState;
+use base64::Engine as _;
 use encoding_rs::{Encoding, UTF_8};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -16,8 +17,24 @@ const MAX_TEXT_FILE_BYTES: u64 = 32 * 1024 * 1024;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct FileFilter {
+    pub name: String,
+    pub extensions: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PickFileArgs {
     pub title: Option<String>,
+    pub filters: Option<Vec<FileFilter>>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveFileArgs {
+    pub title: Option<String>,
+    pub default_name: Option<String>,
+    pub data_base64: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -66,17 +83,27 @@ pub struct AppInfo {
 
 #[tauri::command]
 pub async fn pick_file(app: AppHandle, args: Option<PickFileArgs>) -> Result<Option<String>, String> {
-    let title = args
-        .and_then(|a| a.title)
-        .unwrap_or_else(|| "选择文件".to_string());
+    let (title, filters) = args
+        .map(|a| (a.title, a.filters))
+        .unwrap_or_default();
+    let title = title.unwrap_or_else(|| "选择文件".to_string());
 
     // 对话框回调走事件循环，这里用 channel 把它同步回来。
     // 命令跑在异步运行时线程上，阻塞等待不会卡住主线程。
     let (tx, rx) = std::sync::mpsc::channel();
-    app.dialog()
-        .file()
-        .set_title(&title)
-        .pick_file(move |picked| {
+    let mut dialog = app.dialog().file().set_title(&title);
+    for filter in filters.unwrap_or_default() {
+        // "*" 交给系统的「所有文件」，这里不加过滤器
+        if filter.extensions.iter().any(|ext| ext == "*") {
+            continue;
+        }
+        let extensions: Vec<&str> = filter.extensions.iter().map(|ext| ext.as_str()).collect();
+        if extensions.is_empty() {
+            continue;
+        }
+        dialog = dialog.add_filter(filter.name.as_str(), &extensions);
+    }
+    dialog.pick_file(move |picked| {
             let _ = tx.send(picked);
         });
 
@@ -107,6 +134,33 @@ pub async fn save_text(app: AppHandle, args: SaveTextArgs) -> Result<Option<Stri
     };
 
     std::fs::write(&path, content).map_err(|err| format!("写入失败：{err}"))?;
+    Ok(Some(path.to_string_lossy().to_string()))
+}
+
+#[tauri::command]
+pub async fn save_file(app: AppHandle, args: SaveFileArgs) -> Result<Option<String>, String> {
+    let title = args.title.unwrap_or_else(|| "保存文件".to_string());
+    let default_name = args.default_name.unwrap_or_else(|| "untitled.bin".to_string());
+    let data = args.data_base64.unwrap_or_default();
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(data)
+        .map_err(|err| format!("数据解码失败：{err}"))?;
+
+    let (tx, rx) = std::sync::mpsc::channel();
+    app.dialog()
+        .file()
+        .set_title(&title)
+        .set_file_name(&default_name)
+        .save_file(move |picked| {
+            let _ = tx.send(picked);
+        });
+
+    let picked = rx.recv().map_err(|err| err.to_string())?;
+    let Some(path) = picked.and_then(|p| p.into_path().ok()) else {
+        return Ok(None);
+    };
+
+    std::fs::write(&path, bytes).map_err(|err| format!("写入失败：{err}"))?;
     Ok(Some(path.to_string_lossy().to_string()))
 }
 

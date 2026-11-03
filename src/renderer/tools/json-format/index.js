@@ -1,5 +1,9 @@
 import { h, debounce, formatBytes } from '../../core/dom.js';
 import { seg, toolbar, field, statusBar, copyButton, hintLine } from '../../core/ui.js';
+import { isAllowedFile, extensionList } from '../../core/files.js';
+
+// 只收纯文本类的 JSON；xlsx / pdf 这类二进制文件读出来是乱码，直接挡在门外
+const IMPORT_EXTENSIONS = ['json', 'txt'];
 
 const SAMPLE = '{"name":"use-tools","version":"0.1.0","features":["json","base64","timestamp"],"ready":true}';
 
@@ -117,9 +121,14 @@ export default {
         onClick: async () => {
           const filePath = await api.pickFile({
             title: '选择 JSON 文件',
-            filters: [{ name: 'JSON', extensions: ['json', 'txt'] }],
+            filters: [{ name: `JSON / 文本（${extensionList(IMPORT_EXTENSIONS)}）`, extensions: IMPORT_EXTENSIONS }],
           });
           if (!filePath) return;
+          const name = await api.basename(filePath);
+          if (!isAllowedFile(name, IMPORT_EXTENSIONS)) {
+            status.set('err', `只能导入 ${extensionList(IMPORT_EXTENSIONS)} 文件，${name} 不支持`);
+            return;
+          }
           try {
             input.value = await api.readText(filePath);
             transform();

@@ -22,6 +22,8 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 encoding_rs = "0.8"
 encoding_rs_io = "0.1"
+# 保存 xlsx 时渲染层传 base64，这里解码成字节
+base64 = "0.21"
 # 读取 xlsx/xlsm：只做「按列取单元格」，不需要日期格式化与图片
 calamine = "0.30"
 

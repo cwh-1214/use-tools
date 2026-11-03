@@ -10,6 +10,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('api', {
   pickFile: (options) => ipcRenderer.invoke('dialog:pickFile', options),
   saveText: (options) => ipcRenderer.invoke('dialog:saveText', options),
+  saveFile: (options) => ipcRenderer.invoke('dialog:saveFile', options),
   readText: (filePath, options) => ipcRenderer.invoke('fs:readText', filePath, options),
   basename: (filePath) => ipcRenderer.invoke('fs:basename', filePath),
   stat: (filePath) => ipcRenderer.invoke('fs:stat', filePath),

@@ -22,6 +22,25 @@ const fixtureQueue = process.env.SMOKE_FIXTURE_QUEUE
   ? process.env.SMOKE_FIXTURE_QUEUE.split(';').filter(Boolean)
   : null;
 
+/**
+ * 自动化测试用：SMOKE_SAVE_DIR 存在时，保存对话框不弹窗，直接写到这个目录。
+ * 路径取 options.defaultName，便于测试断言产物（比如导出的 xlsx）。
+ */
+const smokeSaveDir = process.env.SMOKE_SAVE_DIR || null;
+
+async function chooseSavePath(options, fallbackName) {
+  if (smokeSaveDir) {
+    return path.join(smokeSaveDir, options.defaultName || fallbackName);
+  }
+  const result = await dialog.showSaveDialog({
+    title: options.title || '保存文件',
+    defaultPath: options.defaultName || fallbackName,
+    filters: options.filters || [{ name: '所有文件', extensions: ['*'] }],
+  });
+  if (result.canceled || !result.filePath) return null;
+  return result.filePath;
+}
+
 function registerIpcHandlers() {
   // 打开文件选择框，返回选中路径（取消则返回 null）
   ipcMain.handle('dialog:pickFile', async (_event, options = {}) => {
@@ -40,15 +59,20 @@ function registerIpcHandlers() {
 
   // 保存文本内容到用户选择的位置
   ipcMain.handle('dialog:saveText', async (_event, options = {}) => {
-    const result = await dialog.showSaveDialog({
-      title: options.title || '保存文件',
-      defaultPath: options.defaultName || 'untitled.txt',
-      filters: options.filters || [{ name: '所有文件', extensions: ['*'] }],
-    });
-    if (result.canceled || !result.filePath) return null;
+    const filePath = await chooseSavePath(options, 'untitled.txt');
+    if (!filePath) return null;
 
-    await fs.writeFile(result.filePath, options.content ?? '', 'utf8');
-    return result.filePath;
+    await fs.writeFile(filePath, options.content ?? '', 'utf8');
+    return filePath;
+  });
+
+  // 保存二进制内容（xlsx 等）：渲染层把字节转成 base64 传过来
+  ipcMain.handle('dialog:saveFile', async (_event, options = {}) => {
+    const filePath = await chooseSavePath(options, 'untitled.bin');
+    if (!filePath) return null;
+
+    await fs.writeFile(filePath, Buffer.from(String(options.dataBase64 || ''), 'base64'));
+    return filePath;
   });
 
   // 读取文本文件；options.encoding 支持 gbk（内部映射到 gb18030 超集，兼容性更好）

@@ -1,6 +1,7 @@
 import { h, debounce } from '../../core/dom.js';
 import { seg, setSegValue, toolbar, field, statusBar, copyButton, hintLine } from '../../core/ui.js';
 import { convert, stripShell, normalizeNewlines } from './parse.js';
+import { isAllowedFile, extensionList } from '../../core/files.js';
 
 /**
  * SQL IN 生成器
@@ -9,6 +10,9 @@ import { convert, stripShell, normalizeNewlines } from './parse.js';
  */
 
 // 每个选项都带 hint：界面上只放短标签，鼠标悬停补一句「这个选项到底产出什么」
+// 只收纯文本 / SQL；xlsx、docx 这类二进制文件不能直接当文本读
+const IMPORT_EXTENSIONS = ['txt', 'csv', 'sql', 'log', 'dat'];
+
 const MODES = [
   { id: 'in-line', label: 'IN 单行', hint: '输出成一行 IN (…)，直接贴进 SQL' },
   { id: 'in-block', label: 'IN 多行', hint: '每个值占一行，长列表更好读' },
@@ -363,16 +367,20 @@ export default {
           const filePath = await api.pickFile({
             title: '选择数据文件',
             filters: [
-              { name: '文本 / SQL', extensions: ['txt', 'csv', 'sql', 'log', 'dat'] },
-              { name: '所有文件', extensions: ['*'] },
+              { name: `文本 / SQL（${extensionList(IMPORT_EXTENSIONS)}）`, extensions: IMPORT_EXTENSIONS },
             ],
           });
           if (!filePath) return;
+          const name = await api.basename(filePath);
+          if (!isAllowedFile(name, IMPORT_EXTENSIONS)) {
+            setStatus('err', `只能导入 ${extensionList(IMPORT_EXTENSIONS)} 文件，${name} 不支持`);
+            return;
+          }
           try {
             const text = await api.readText(filePath, { encoding: state.encoding });
             input.value = text;
             transform();
-            setStatus('ok', `已导入 ${await api.basename(filePath)}`);
+            setStatus('ok', `已导入 ${name}`);
           } catch (err) {
             setStatus('err', `读取失败：${err.message}`);
           }
