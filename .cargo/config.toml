@@ -1,0 +1,3 @@
+[build]
+# 编译产物统一放到项目根 .build/，避免 src-tauri/ 被 target 撑大
+target-dir = ".build/target"

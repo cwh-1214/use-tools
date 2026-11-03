@@ -72,7 +72,9 @@ fn toggle_window(app: &AppHandle) {
 
 fn restore_window_bounds(win: &WebviewWindow, store: &Store) {
     let settings = store.get();
-    let Some(cfg) = settings.get("window") else { return };
+    let Some(cfg) = settings.get("window") else {
+        return;
+    };
 
     // 没有历史尺寸时不调 set_size，让 tauri.conf.json 里的逻辑尺寸（含 DPI 缩放）生效。
     // 只有用户真的调整过窗口，才用记录下来的物理像素还回去。
@@ -124,7 +126,11 @@ fn restore_window_bounds(win: &WebviewWindow, store: &Store) {
         }
     }
 
-    if cfg.get("maximized").and_then(|v| v.as_bool()).unwrap_or(false) {
+    if cfg
+        .get("maximized")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
+    {
         let _ = win.maximize();
     }
 }
@@ -147,7 +153,9 @@ fn persist_window_bounds(app: &AppHandle) {
 
     if win.is_maximized().unwrap_or(false) {
         // 最大化时内容区就是整块屏幕，记下来会把「还原后」的尺寸覆盖掉
-        state.store.update(&json!({ "window": { "maximized": true } }));
+        state
+            .store
+            .update(&json!({ "window": { "maximized": true } }));
         return;
     }
     if win.is_minimized().unwrap_or(false) {
@@ -272,7 +280,9 @@ fn create_tray(app: &AppHandle, hotkey_ok: bool) -> tauri::Result<()> {
                     !state.store.ui_flag("closeToTray", true)
                 };
                 let state = app.state::<AppState>();
-                state.store.update(&json!({ "ui": { "closeToTray": flipped } }));
+                state
+                    .store
+                    .update(&json!({ "ui": { "closeToTray": flipped } }));
                 refresh_tray_menu(app);
             }
             "quit" => {

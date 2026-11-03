@@ -128,16 +128,21 @@ impl Collector {
     fn feed_row(&mut self, row: &[Data]) {
         let cells: Vec<Option<String>> = row.iter().map(cell_text).collect();
 
-        let has_any = cells
-            .iter()
-            .any(|cell| cell.as_deref().map(|v| !v.trim().is_empty()).unwrap_or(false));
+        let has_any = cells.iter().any(|cell| {
+            cell.as_deref()
+                .map(|v| !v.trim().is_empty())
+                .unwrap_or(false)
+        });
         if !has_any {
             self.empty_lines += 1;
             return;
         }
         self.total_lines += 1;
 
-        match cells.get(self.column_index).and_then(|cell| cell.as_deref()) {
+        match cells
+            .get(self.column_index)
+            .and_then(|cell| cell.as_deref())
+        {
             Some(value) => self.push_value(value),
             None => self.short_lines += 1,
         }
@@ -195,11 +200,7 @@ fn is_legacy_xls(path: &str) -> bool {
 }
 
 /// 按列读取表格（xlsx/xlsm）：取第一个工作表，第 column_index 列（0 基）
-pub fn scan_spreadsheet(
-    path: &str,
-    column_index: usize,
-    trim: bool,
-) -> Result<ScanResult, String> {
+pub fn scan_spreadsheet(path: &str, column_index: usize, trim: bool) -> Result<ScanResult, String> {
     let mut workbook = open_workbook_auto(path).map_err(|err| format!("打开表格失败：{err}"))?;
     let sheet_name = workbook
         .sheet_names()

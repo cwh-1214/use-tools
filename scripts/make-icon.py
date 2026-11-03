@@ -184,8 +184,8 @@ def write_ico(path):
 
 
 if __name__ == "__main__":
-    here = os.path.dirname(os.path.abspath(__file__))          # <repo>/src-tauri/tools
-    repo = os.path.dirname(os.path.dirname(here))               # <repo>
+    here = os.path.dirname(os.path.abspath(__file__))          # <repo>/scripts
+    repo = os.path.dirname(here)                                # <repo>
     tauri_icons = os.path.join(repo, "src-tauri", "icons")
     os.makedirs(tauri_icons, exist_ok=True)
 

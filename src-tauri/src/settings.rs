@@ -108,12 +108,11 @@ impl Store {
         thread::spawn(move || {
             // 收到第一个信号后再多等 300ms，把这一波改动合并成一次落盘
             while rx.recv().is_ok() {
-                loop {
-                    match rx.recv_timeout(Duration::from_millis(WRITE_DELAY_MS)) {
-                        Ok(_) => continue,
-                        Err(_) => break,
-                    }
-                }
+                // 持续接收直到这一波安静下来（超时或发送端断开）
+                while rx
+                    .recv_timeout(Duration::from_millis(WRITE_DELAY_MS))
+                    .is_ok()
+                {}
                 write_now(&worker_path, &worker_data);
             }
         });

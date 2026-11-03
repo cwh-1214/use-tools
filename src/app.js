@@ -126,7 +126,7 @@ function renderWelcome() {
       ]),
       h('p', { style: { marginTop: '14px' } }, [
         '新增工具：在 ',
-        h('code', {}, ['src/renderer/tools/']),
+        h('code', {}, ['src/tools/']),
         ' 下建一个文件夹，然后在 ',
         h('code', {}, ['tools/index.js']),
         ' 里加一行导入。',

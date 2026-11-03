@@ -8,24 +8,27 @@
 
 ## 下载
 
-不想装工具链就直接下绿色版：[Releases](https://github.com/cwh-1214/use-tools/releases/latest) 里的 `use-tools-0.1.0.exe`，单文件 3.85 MB，双击即用。
+不想装工具链就直接下绿色版：[Releases](https://github.com/cwh-1214/use-tools/releases/latest) 里的 `use-tools-0.1.0.exe`，单文件 4.2 MB，双击即用。
 
 - 系统要求：Windows 10/11（用系统自带的 WebView2 运行时，Win11 已内置，Win10 若缺会自动提示安装）
 - 免安装、不写注册表；设置与窗口位置存在 `%APPDATA%\com.usertools.desktop\settings.json`
-- 装到开始菜单/可卸载的版本需要 NSIS 打包（`npm run tauri:build`），当前只发布绿色版
+- 装到开始菜单/可卸载的版本需要 NSIS 打包（`npm run build`），当前只发布绿色版
 
 ## 运行
 
 ```bash
-npm install        # 首次（只装 Tauri CLI）
-npm run tauri:dev  # 开发运行（首次编译 2~4 分钟，之后增量秒级）
-npm run tauri:build# 出安装包 → src-tauri/target/release/bundle/nsis/
-npm test           # 离线单元测试（xlsx 生成器）
-npm run test:e2e   # 端到端测试（真的点按钮、断言界面结果）
-npm run test:all   # 两层一起跑
+npm install          # 首次（只装 Tauri CLI）
+
+npm run dev          # 开发运行（首次编译 2~4 分钟，之后增量秒级）
+npm run build        # 出 NSIS 安装包 → .build/target/release/bundle/nsis/
+
+npm test             # 离线测试：xlsx 生成器 + Rust 列扫描
+npm run test:e2e     # 端到端：自动构建 debug 产物，真的点按钮、断言界面结果
+npm run check        # 提交前完整校验：格式 + 单测 + 全部端到端场景
+npm run package      # 发布打包：release 构建 + 冒烟 + dist/ 下的 exe 与 zip
 ```
 
-> 端到端测试需要先构建可执行文件：`cargo build --release`（或用 `USE_TOOLS_EXE` 指向已有产物）。
+> 端到端测试默认用 `.build/target/debug` 的产物，缺失时自动 `cargo build`；要测发布版用 `npm run test:e2e:release`。
 
 当前有 5 个工具：JSON 格式化、Base64 编解码、时间戳转换、列比对、SQL IN 生成器。
 
@@ -88,49 +91,67 @@ npm run test:all   # 两层一起跑
 
 ## 目录结构
 
+遵循 Tauri 的标准布局：`src/` 是前端根目录（`frontendDist` 直接指向它），`src-tauri/` 只放 Rust 外壳，脚本与测试各自独立。
+
 ```
 use-tools/
 ├── package.json
-├── src/
-│   └── renderer/
-│       ├── index.html
-│       ├── app.js             外壳：侧边栏、搜索、路由、工具挂载
-│       ├── core/
-│       │   ├── dom.js         h() / debounce() / formatBytes() 等小工具
-│       │   ├── ui.js          toolbar() / field() / seg() / statusBar() 等共用组件
-│       │   ├── bridge.js      用 invoke 还原 window.api（渲染层与 Rust 的唯一接口）
-│       │   ├── files.js       扩展名白名单（导入类型限制）
-│       │   ├── xlsx.js        手写 OOXML 的 xlsx 生成器（导出比对结果）
-│       │   └── registry.js    工具校验、分组、搜索
-│       ├── styles/
-│       │   ├── base.css       设计令牌与重置
-│       │   └── app.css        布局 + 通用组件类
-│       └── tools/
-│           ├── index.js       ★ 工具清单，加工具只改这里
-│           ├── _template/     新工具模板（复制它开始写）
-│           ├── json-format/
-│           ├── base64/
-│           ├── timestamp/
-│           ├── column-compare/
-│           └── sql-in/
-│               ├── index.js   界面与交互
-│               └── parse.js   纯清洗/切分/拼装逻辑（不依赖 DOM，便于测试）
+├── src/                        ← 前端根目录，Tauri 直接把它当静态站点
+│   ├── index.html
+│   ├── app.js                  外壳：侧边栏、搜索、路由、工具挂载
+│   ├── settings.js             设置页
+│   ├── core/
+│   │   ├── dom.js              h() / debounce() / formatBytes() 等小工具
+│   │   ├── ui.js               toolbar() / field() / seg() / statusBar() 等共用组件
+│   │   ├── bridge.js           用 invoke 还原 window.api（渲染层与 Rust 的唯一接口）
+│   │   ├── files.js            扩展名白名单（导入类型限制）
+│   │   ├── xlsx.js             手写 OOXML 的 xlsx 生成器（导出比对结果）
+│   │   └── registry.js         工具校验、分组、搜索
+│   ├── styles/
+│   │   ├── base.css            设计令牌与重置
+│   │   └── app.css             布局 + 通用组件类
+│   └── tools/
+│       ├── index.js            ★ 工具清单，加工具只改这里
+│       ├── _template/          新工具模板（复制它开始写）
+│       ├── json-format/
+│       ├── base64/
+│       ├── timestamp/
+│       ├── column-compare/
+│       └── sql-in/
+│           ├── index.js        界面与交互
+│           └── parse.js        纯清洗/切分/拼装逻辑（不依赖 DOM，便于测试）
+├── src-tauri/                  ← Rust 外壳，只放 Tauri 自己的东西
+│   ├── Cargo.toml / Cargo.lock / build.rs
+│   ├── tauri.conf.json         窗口、CSP、安装包配置（frontendDist 指向 ../src）
+│   ├── capabilities/default.json
+│   ├── icons/                  由 scripts/make-icon.py 生成
+│   └── src/
+│       ├── main.rs             入口（发布版不弹控制台）
+│       ├── lib.rs              窗口、托盘、全局快捷键、单实例、窗口几何记忆
+│       ├── commands.rs         全部系统能力（文件、剪贴板、设置、主题、快捷键…）
+│       ├── settings.rs         设置持久化（深合并 + 防抖 + 临时文件 rename）
+│       ├── column_scan.rs      流式按列抽取（encoding_rs 解码，GBK→GB18030）
+│       └── smoke.rs            自检：注入 JS → IPC 回传 → Rust 断言
+├── scripts/
+│   ├── make-icon.py            图标生成（纯标准库，不依赖 Pillow）
+│   ├── package.js              发布打包：release 构建 + 冒烟 + exe/zip
+│   └── clean.js                清理产物（dist / test/output / .build）
 ├── test/
-│   ├── run-e2e.js             端到端测试编排（起 Tauri 可执行文件跑场景脚本）
-│   ├── xlsx.test.js           xlsx 生成器断言（纯 Node，不需要浏览器）
-│   ├── e2e/                   注入页面的端到端场景（每个工具一个同名脚本）
-│   ├── fixtures/              测试用的样例文件（按场景名建子目录）
-│   └── output/                测试报告与产物（已 gitignore）
-├── dist/                      打包产物（已 gitignore）
-├── src-tauri/                 Tauri 外壳（Rust 主进程 + 配置，见文末）
-│   └── tools/make-icon.py     图标生成（纯标准库，不依赖 Pillow）
-└── docs/
-    └── 开发笔记.md             架构决策、约定、后续待办
+│   ├── unit/                   纯 Node 单测
+│   ├── e2e/                    端到端场景（每个工具一个同名脚本）
+│   ├── fixtures/               测试用的样例文件（按场景名建子目录）
+│   ├── output/                 测试报告与产物（已 gitignore）
+│   └── run-e2e.js              端到端测试编排（构建 + 起 Tauri + 注入场景）
+├── .build/                     编译缓存（gitignore，npm run clean:build 可清）
+├── dist/                       发布产物（gitignore）
+├── docs/
+│   └── 开发笔记.md             架构决策、约定、后续待办
+└── .cargo/config.toml          把 Cargo target 统一到 .build/target
 ```
 
 ## 加一个工具
 
-1. 复制 `src/renderer/tools/_template/` 为 `src/renderer/tools/<你的工具id>/`
+1. 复制 `src/tools/_template/` 为 `src/tools/<你的工具id>/`
 2. 改写这个对象的元信息，在 `mount` 里写界面：
 
 ```js
@@ -148,7 +169,7 @@ export default {
 };
 ```
 
-3. 到 `src/renderer/tools/index.js` 加 import 和数组项，保存，刷新窗口。
+3. 到 `src/tools/index.js` 加 import 和数组项，保存，刷新窗口。
 
 ## 渲染进程能用什么
 
@@ -186,11 +207,14 @@ export default {
 
 ## 测试
 
-两层，都不需要人工点界面：
+分三层，都不需要人工点界面：
 
-- `npm test` —— 纯 Node，测 `src/renderer/core/xlsx.js`（xlsx 生成器）：部件结构、XML 转义、工作表名清洗与去重、base64 往返。
-- `npm run test:e2e` —— 起真实的 Tauri 窗口，把 `test/e2e/<场景>.js` 注入页面，点按钮跑完整流程并断言界面结果。不带参数时依次跑所有场景；只跑一个就 `npm run test:e2e sql-in`。
-- `npm run test:all` —— 两层一起跑。
+- `npm test` —— 离线测试：`test/unit/xlsx.test.js` 验 xlsx 生成器（部件结构、XML 转义、表名清洗、base64 往返）；`cargo test` 验列扫描语义（分隔符、空行/短行、表格缺列）。
+- `npm run test:e2e` —— 自动构建 debug 产物（缺失时），起真实 Tauri 窗口，把 `test/e2e/<场景>.js` 注入页面，点按钮跑完整流程并断言界面结果。不带参数跑全部；只跑一个用 `npm run test:e2e sql-in`；测发布版用 `npm run test:e2e:release`。
+- `npm run check` —— 提交前完整校验：`cargo fmt --check` + 单测 + 全部 e2e。
+- `npm run lint` —— clippy 严格模式（`-D warnings`）。
+
+e2e 默认走 `.build/target/debug` 的产物（增量构建快）；`--rebuild` 强制重建，`--no-build` 禁止自动构建，`USE_TOOLS_EXE` 可指向任意产物。
 
 机制是一组只在冒烟模式（`USE_TOOLS_SMOKE=1`）生效的环境变量：
 
@@ -204,15 +228,18 @@ export default {
 
 给新工具加交互测试时，在 `test/e2e/` 放一个同名场景脚本即可；需要样例文件就建 `test/fixtures/<场景名>/`，里面的文件会按文件名顺序进队列。
 
-## 打包（体积 4.4MB）
+## 打包（exe 约 4.2MB）
 
 Tauri 复用系统自带的 WebView2，不自带 Chromium，产物只有一个几 MB 的 exe。
 
 ```bash
-npm run tauri:dev                    # 开发运行（首次编译 2~4 分钟，之后增量秒级）
-npm run tauri:build                  # 出安装包 → src-tauri/target/release/bundle/nsis/
-USE_TOOLS_SMOKE=1 ./src-tauri/target/release/use-tools.exe   # 无人工自检，退出码 0 = 通过
+npm run dev                # 开发运行（首次编译 2~4 分钟，之后增量秒级）
+npm run build              # 出 NSIS 安装包 → .build/target/release/bundle/nsis/
+npm run package            # 绿色版 → dist/use-tools-<ver>.exe + -portable.zip（含冒烟）
+npm run test:e2e:release   # 用发布版产物跑全部端到端场景
 ```
+
+`npm run package` 依次做：release 构建 → 内置冒烟（退出码非 0 直接中断）→ 复制 exe 到 `dist/` → 打 zip，并校验 `package.json` / `Cargo.toml` / `tauri.conf.json` 的版本号是否一致。
 
 一次性环境（本机已完成）：
 
@@ -227,9 +254,9 @@ USE_TOOLS_SMOKE=1 ./src-tauri/target/release/use-tools.exe   # 无人工自检�
 ```
 src-tauri/
 ├── Cargo.toml / build.rs
-├── tauri.conf.json            窗口、CSP、安装包配置（前端目录直接指向 ../src/renderer）
+├── tauri.conf.json            窗口、CSP、安装包配置（前端目录直接指向 ../src）
 ├── capabilities/default.json  只开事件监听，其余能力都走自定义命令
-├── icons/                     由 tools/make-icon.py 一并生成
+├── icons/                     由 scripts/make-icon.py 生成
 └── src/
     ├── main.rs                入口（发布版不弹控制台）
     ├── lib.rs                 窗口、托盘、全局快捷键、单实例、窗口几何记忆
@@ -239,24 +266,24 @@ src-tauri/
     └── smoke.rs               自检：注入 JS → IPC 回传 → Rust 断言
 ```
 
-**渲染层只有一个接口文件** `src/renderer/core/bridge.js`：用 `invoke` 还原 `window.api`，工具代码不直接碰 Rust。
+**渲染层只有一个接口文件** `src/core/bridge.js`：用 `invoke` 还原 `window.api`，工具代码不直接碰 Rust。
 
 | 对比项 | Electron（已移除） | Tauri（现在） |
 |---|---|---|
-| 分发包 | 98 MB（NSIS 安装包） | 4.4 MB（exe）/ 2.0 MB（zip） |
-| 磁盘占用 | ~310 MB | 4.4 MB |
+| 分发包 | 98 MB（NSIS 安装包） | 4.2 MB（exe）/ 1.9 MB（zip） |
+| 磁盘占用 | ~310 MB | 4.2 MB |
 | 运行内存 | 120 MB+ | 35 MB |
 | 冷启动 | 较慢（要起 Chromium） | 快（复用系统 WebView2） |
 | 数据目录 | `%APPDATA%\工具集` | `%APPDATA%\com.usertools.desktop` |
 
-> 已知限制：`tauri build` 的最后一步要从 GitHub 下载 NSIS 工具链，国内直连会被掐断（报 `peer closed connection` 或代理 502）。**exe 本身不需要它**，拿到 `target/release/use-tools.exe` 就能直接用；要安装包时开代理再跑一次即可，工具链会缓存在 `%LOCALAPPDATA%\tauri`。
+> 已知限制：`tauri build` 的最后一步要从 GitHub 下载 NSIS 工具链，国内直连会被掐断（报 `peer closed connection` 或代理 502）。**exe 本身不需要它**，拿到 `.build/target/release/use-tools.exe` 就能直接用；要安装包时开代理再跑一次即可，工具链会缓存在 `%LOCALAPPDATA%\tauri`。
 
-- **图标**：`src-tauri/tools/make-icon.py` 用 Python 标准库生成 `src-tauri/icons/` 下的 PNG 与多尺寸 ico（不依赖 Pillow），改配色就改脚本顶部的常量再跑一次。
+- **图标**：`scripts/make-icon.py` 用 Python 标准库生成 `src-tauri/icons/` 下的 PNG 与多尺寸 ico（不依赖 Pillow），改配色就改脚本顶部的常量再跑一次。
 - **未签名**：没配代码签名证书，Windows 首次运行会弹「未知发布者」，点「更多信息 → 仍要运行」即可。自己用不用管，要分发就得买张证书。
 
 打包完想确认产物真能跑（而不是只看到「构建成功」），直接让它自己冒烟：
 
 ```bash
-USE_TOOLS_SMOKE=1 ./src-tauri/target/release/use-tools.exe   # 退出码 0 = 通过
+USE_TOOLS_SMOKE=1 ./.build/target/release/use-tools.exe   # 退出码 0 = 通过
 ```
 

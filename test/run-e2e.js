@@ -1,10 +1,12 @@
 'use strict';
 
 /**
- * 端到端测试入口（Tauri）：npm run test:e2e [场景名]
+ * 端到端测试编排：npm run test:e2e [场景名...] [--release] [--rebuild] [--no-build]
  *
- * 前置：先构建可执行文件（`cargo build --release`，或 `npm run tauri:build`）。
- * 也可以用 USE_TOOLS_EXE 指定任意构建产物，例如 debug 版。
+ * 产物默认取 `.build/target/debug/use-tools.exe`（增量构建快，适合日常回归）；
+ * 加 `--release` 或设 USE_TOOLS_PROFILE=release 则用发布版产物。
+ * 产物不存在时自动 `cargo build`；`--no-build` 则直接报错。
+ * 也可以用 USE_TOOLS_EXE 指定任意构建产物。
  *
  * 每个场景做的事：
  *   1. 准备 fixtures：若存在 test/fixtures/<场景名>/ 目录，用它里面的文件（按文件名排序）；
@@ -16,13 +18,21 @@
  * 发布版是 windows 子系统，没有控制台输出，所以判定只看退出码 + 结果文件。
  */
 
-const { spawn } = require('node:child_process');
+const { spawn, spawnSync } = require('node:child_process');
 const path = require('node:path');
 const fs = require('node:fs');
 
 const root = path.join(__dirname, '..');
-const scenarioDir = path.join(root, 'test', 'e2e');
-const outputDir = path.join(root, 'test', 'output');
+const scenarioDir = path.join(__dirname, 'e2e');
+const outputDir = path.join(__dirname, 'output');
+const targetDir = path.join(root, '.build', 'target');
+
+const argv = process.argv.slice(2);
+const flags = new Set(argv.filter((arg) => arg.startsWith('--')));
+const requested = argv.filter((arg) => !arg.startsWith('--'));
+
+const profile =
+  process.env.USE_TOOLS_PROFILE === 'release' || flags.has('--release') ? 'release' : 'debug';
 
 function listScenarios() {
   return fs
@@ -33,20 +43,52 @@ function listScenarios() {
 }
 
 function resolveFixtures(scenario) {
-  const own = path.join(root, 'test', 'fixtures', scenario);
+  const own = path.join(__dirname, 'fixtures', scenario);
   if (fs.existsSync(own)) {
     return fs
       .readdirSync(own)
       .sort()
       .map((name) => path.join(own, name));
   }
-  return ['caseA.txt', 'caseB.txt'].map((name) => path.join(root, 'test', 'fixtures', name));
+  return ['caseA.txt', 'caseB.txt'].map((name) => path.join(__dirname, 'fixtures', name));
 }
 
-function findExe() {
-  if (process.env.USE_TOOLS_EXE) return process.env.USE_TOOLS_EXE;
+function defaultExe() {
   const name = process.platform === 'win32' ? 'use-tools.exe' : 'use-tools';
-  return path.join(root, 'src-tauri', 'target', 'release', name);
+  return path.join(targetDir, profile, name);
+}
+
+/** 返回可执行文件路径；必要时先构建 */
+function ensureExe() {
+  if (process.env.USE_TOOLS_EXE) return process.env.USE_TOOLS_EXE;
+
+  const exe = defaultExe();
+  if (fs.existsSync(exe) && !flags.has('--rebuild')) return exe;
+
+  if (flags.has('--no-build')) {
+    console.error(`找不到可执行文件：${exe}`);
+    console.error('去掉 --no-build 让脚本自动构建，或先 npm run build:' + profile + '。');
+    process.exit(1);
+  }
+
+  console.log(`▶ 构建 ${profile} 产物（首次较慢，之后增量）...`);
+  const args = ['build', '--manifest-path', path.join('src-tauri', 'Cargo.toml')];
+  if (profile === 'release') args.push('--release');
+
+  const built = spawnSync('cargo', args, { cwd: root, stdio: 'inherit' });
+  if (built.error) {
+    console.error(`无法执行 cargo：${built.error.message}`);
+    process.exit(1);
+  }
+  if (built.status !== 0) {
+    console.error('构建失败，终止测试。');
+    process.exit(built.status || 1);
+  }
+  if (!fs.existsSync(exe)) {
+    console.error(`构建完成但找不到产物：${exe}`);
+    process.exit(1);
+  }
+  return exe;
 }
 
 function runScenario(scenario, exe) {
@@ -107,15 +149,10 @@ function runScenario(scenario, exe) {
 }
 
 async function main() {
-  const requested = process.argv.slice(2).filter(Boolean);
   const scenarios = requested.length > 0 ? requested : listScenarios();
-  const exe = findExe();
+  const exe = ensureExe();
 
-  if (!fs.existsSync(exe)) {
-    console.error(`找不到可执行文件：${exe}`);
-    console.error('先运行 cargo build --release（或 npm run tauri:build），或用 USE_TOOLS_EXE 指定路径。');
-    process.exit(1);
-  }
+  console.log(`▶ 产物: ${path.relative(root, exe)}（${profile}）`);
 
   let failed = 0;
   for (const scenario of scenarios) {
@@ -123,7 +160,11 @@ async function main() {
     if (code !== 0) failed += 1;
   }
 
-  console.log(failed === 0 ? '\n✔ 全部场景通过' : `\n✘ ${failed} 个场景失败`);
+  console.log(
+    failed === 0
+      ? `\n✔ ${scenarios.length} 个场景全部通过`
+      : `\n✘ ${failed}/${scenarios.length} 个场景失败`
+  );
   process.exit(failed === 0 ? 0 : 1);
 }
 

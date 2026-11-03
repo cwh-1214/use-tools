@@ -151,7 +151,10 @@ const SMOKE_JS: &str = r#"(async () => {
 })()"#;
 
 fn read_reports() -> Vec<String> {
-    reports().lock().map(|list| list.clone()).unwrap_or_default()
+    reports()
+        .lock()
+        .map(|list| list.clone())
+        .unwrap_or_default()
 }
 
 /// 冒烟模式下允许测试脚本缩放窗口：WebView 里的 window.resizeTo 在 Tauri 不生效
@@ -246,9 +249,9 @@ pub fn attach(app: &AppHandle) {
         // 等 D / S / H 阶段落地（或超时）
         let deadline = Instant::now() + Duration::from_secs(12);
         loop {
-            let done = read_reports().iter().any(|line| {
-                line.contains("\"phase\":\"H\"") || line.contains("\"phase\":\"E\"")
-            });
+            let done = read_reports()
+                .iter()
+                .any(|line| line.contains("\"phase\":\"H\"") || line.contains("\"phase\":\"E\""));
             if done || Instant::now() > deadline {
                 break;
             }

@@ -9,7 +9,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const source = fs
-  .readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'core', 'xlsx.js'), 'utf8')
+  .readFileSync(path.join(__dirname, '..', '..', 'src', 'core', 'xlsx.js'), 'utf8')
   .replace(/^export /gm, '');
 const { buildXlsx, bytesToBase64 } = new Function(
   `${source}; return { buildXlsx, bytesToBase64 };`

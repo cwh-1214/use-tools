@@ -108,10 +108,11 @@ pub struct AppInfo {
 // ---------------------------------------------------------------------------
 
 #[tauri::command]
-pub async fn pick_file(app: AppHandle, args: Option<PickFileArgs>) -> Result<Option<String>, String> {
-    let (title, filters) = args
-        .map(|a| (a.title, a.filters))
-        .unwrap_or_default();
+pub async fn pick_file(
+    app: AppHandle,
+    args: Option<PickFileArgs>,
+) -> Result<Option<String>, String> {
+    let (title, filters) = args.map(|a| (a.title, a.filters)).unwrap_or_default();
     let title = title.unwrap_or_else(|| "选择文件".to_string());
 
     if std::env::var("USE_TOOLS_SMOKE").is_ok() {
@@ -138,8 +139,8 @@ pub async fn pick_file(app: AppHandle, args: Option<PickFileArgs>) -> Result<Opt
         dialog = dialog.add_filter(filter.name.as_str(), &extensions);
     }
     dialog.pick_file(move |picked| {
-            let _ = tx.send(picked);
-        });
+        let _ = tx.send(picked);
+    });
 
     let picked = rx.recv().map_err(|err| err.to_string())?;
     Ok(picked
@@ -150,7 +151,9 @@ pub async fn pick_file(app: AppHandle, args: Option<PickFileArgs>) -> Result<Opt
 #[tauri::command]
 pub async fn save_text(app: AppHandle, args: SaveTextArgs) -> Result<Option<String>, String> {
     let title = args.title.unwrap_or_else(|| "保存文件".to_string());
-    let default_name = args.default_name.unwrap_or_else(|| "untitled.txt".to_string());
+    let default_name = args
+        .default_name
+        .unwrap_or_else(|| "untitled.txt".to_string());
     let content = args.content.unwrap_or_default();
 
     if let Some(path) = smoke_save_path(&default_name) {
@@ -179,7 +182,9 @@ pub async fn save_text(app: AppHandle, args: SaveTextArgs) -> Result<Option<Stri
 #[tauri::command]
 pub async fn save_file(app: AppHandle, args: SaveFileArgs) -> Result<Option<String>, String> {
     let title = args.title.unwrap_or_else(|| "保存文件".to_string());
-    let default_name = args.default_name.unwrap_or_else(|| "untitled.bin".to_string());
+    let default_name = args
+        .default_name
+        .unwrap_or_else(|| "untitled.bin".to_string());
     let data = args.data_base64.unwrap_or_default();
     let bytes = base64::engine::general_purpose::STANDARD
         .decode(data)
@@ -351,7 +356,10 @@ pub fn settings_update(state: State<'_, AppState>, patch: Value) -> Result<Value
 }
 
 #[tauri::command]
-pub fn settings_patch_tool(state: State<'_, AppState>, args: PatchToolArgs) -> Result<Value, String> {
+pub fn settings_patch_tool(
+    state: State<'_, AppState>,
+    args: PatchToolArgs,
+) -> Result<Value, String> {
     if args.tool_id.is_empty() {
         return Err("toolId 非法".into());
     }
@@ -362,7 +370,11 @@ pub fn settings_patch_tool(state: State<'_, AppState>, args: PatchToolArgs) -> R
 }
 
 #[tauri::command]
-pub fn theme_set(app: AppHandle, state: State<'_, AppState>, mode: String) -> Result<Value, String> {
+pub fn theme_set(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    mode: String,
+) -> Result<Value, String> {
     let theme = match mode.as_str() {
         "system" => None,
         "light" => Some(tauri::Theme::Light),
@@ -422,8 +434,12 @@ pub fn set_hotkey(app: AppHandle, accelerator: String) -> Value {
     let _ = app.global_shortcut().unregister(prev.as_str());
 
     if crate::register_hotkey(&app, &next) {
-        state.store.update(&json!({ "ui": { "hotkey": next.clone() } }));
-        state.hotkey_ok.store(true, std::sync::atomic::Ordering::Relaxed);
+        state
+            .store
+            .update(&json!({ "ui": { "hotkey": next.clone() } }));
+        state
+            .hotkey_ok
+            .store(true, std::sync::atomic::Ordering::Relaxed);
         crate::refresh_tray_menu(&app);
         json!({ "ok": true, "accelerator": next.clone(), "label": next, "registered": true })
     } else {
