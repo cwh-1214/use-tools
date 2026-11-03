@@ -70,22 +70,36 @@
   // 等防抖落盘，避免把测试用过的 5 留在用户配置里
   await sleep(700);
 
-  // ---------------- 矮窗口：统计卡让位，但仍然不许出整页滚动条 ----------------
+  // ---------------- 矮窗口：卡片保持原样，列表压到最小，内容不许互相压住 ----------------
   window.resizeTo(1180, 620);
   await sleep(700);
 
   const statsEl = document.querySelector('.stats');
-  assert('矮窗口没有整页滚动条', view.scrollHeight <= view.clientHeight + 1, true);
-  assert('矮窗口统计卡收成一行', getComputedStyle(statsEl).display, 'flex');
-  assert('矮窗口列表仍能露出数据', list.clientHeight >= 40, true);
+  assert('矮窗口统计卡仍是卡片', getComputedStyle(statsEl).display, 'grid');
+  assert('矮窗口底部说明仍在', getComputedStyle(hint).display, 'block');
+  assert('矮窗口列表仍保留可读高度', list.clientHeight >= 60, true);
+  assert(
+    '矮窗口说明文字不压住列表',
+    hint.getBoundingClientRect().top >= list.getBoundingClientRect().bottom - 1,
+    true
+  );
+  console.log('SHORT ' + JSON.stringify({
+    inner: window.innerHeight,
+    viewScroll: view.scrollHeight,
+    viewClient: view.clientHeight,
+    listH: list.clientHeight,
+  }));
 
-  window.resizeTo(1180, 760);
+  // ---------------- 大窗口（全屏）：列表最高 330，整页仍然不滚 ----------------
+  window.resizeTo(1600, 890);
   await sleep(700);
-  assert('窗口恢复后统计卡还原成卡片', getComputedStyle(statsEl).display, 'grid');
+  assert('大窗口没有整页滚动条', view.scrollHeight <= view.clientHeight + 1, true);
+  assert('大窗口列表不超过 330px', list.clientHeight <= 330, true);
+  assert('大窗口列表明显变高', list.clientHeight > 200, true);
 
   if (failures.length > 0) {
     throw new Error(`${failures.length} 项断言失败：${failures.join(' | ')}`);
   }
 
-  return { ok: true, assertions: 18 };
+  return { ok: true, assertions: 21 };
 })();

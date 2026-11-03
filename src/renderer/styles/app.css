@@ -435,8 +435,9 @@
   min-height: 100%;
 }
 
-/* 「一屏收口」的页面（列比对）：高度刚好等于视口，不产生整页纵向滚动条。
-   结果列表按剩余空间自适应，数据再多也只是列表内部滚动 */
+/* 「一屏收口」的页面（列比对）：高度等于视口。
+   窗口够高时整页不滚动，列表内部自己滚；不够高时列表先压到 70px，
+   再不够才让整页滚动——元素之间不会互相压住 */
 .tool-body.is-fill {
   height: 100%;
   min-height: 0;
@@ -482,46 +483,6 @@
 .tool-body.is-fill > .stats,
 .tool-body.is-fill > .hint {
   flex: none;
-}
-
-/* 窗口矮时：统计卡压成一行摘要（标签页与状态行本来就给了同样的数字），
-   把高度让给结果列表——比整页出滚动条体面得多 */
-@media (max-height: 600px) {
-  .tool-body.is-fill .stats {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 2px 14px;
-  }
-
-  .tool-body.is-fill .stat {
-    display: inline-flex;
-    align-items: baseline;
-    gap: 5px;
-    padding: 0;
-    border: 0;
-    background: none;
-    box-shadow: none;
-  }
-
-  .tool-body.is-fill .stat-num {
-    font-size: 13.5px;
-  }
-
-  .tool-body.is-fill .stat-lbl {
-    font-size: 12px;
-  }
-}
-
-/* 矮窗口：底部说明先收起来，优先保证列表里能看见几行数据 */
-@media (max-height: 670px) {
-  .tool-body.is-fill > .hint {
-    display: none;
-  }
-
-  .tool-body.is-fill .data-list {
-    min-height: 48px;
-  }
 }
 
 .toolbar {
@@ -1064,14 +1025,10 @@
 }
 
 /* ---------------- 数据列表 ---------------- */
-/* 结果区：标签页与工具条保持原高，列表吃掉剩下的高度。
-   min-height:0 是关键——否则内容会把面板顶回自然高度，整页又出现滚动条 */
+/* 结果区不生成自己的盒子：标签页、工具条、列表直接参与 .tool-body 的纵向布局。
+   这样列表能独立收缩，窗口再矮也不会压住下面的说明 */
 .result-pane {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  flex: 1 1 auto;
-  min-height: 0;
+  display: contents;
 }
 
 .data-list {
@@ -1086,12 +1043,11 @@
   font-size: 13px;
 }
 
-/* 一屏收口的页面里，列表不再用固定上限，而是跟着视口伸缩：
-   内容少时保持自然高度，内容多时压到剩余空间并内部滚动 */
+/* 一屏收口的页面里，列表最高 330px（沿用 .data-list 的上限），
+   空间不够时先压到剩余高度，再不够就让整页滚动 */
 .tool-body.is-fill .data-list {
   flex: 0 1 auto;
-  min-height: 64px;
-  max-height: none;
+  min-height: 70px;
 }
 
 /* 长值换行显示而不是横向滚动：横条会占掉 11px 高度，卡片会跟着收缩 */
