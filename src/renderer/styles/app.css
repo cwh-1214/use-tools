@@ -798,12 +798,20 @@
   display: flex;
   flex-direction: column;
   gap: 9px;
+  /* 网格里默认 min-width:auto，长文件名会把整个槽位撑宽、挤掉右侧内容 */
+  min-width: 0;
   padding: 12px 14px;
   border: 1px dashed var(--line-strong);
   border-radius: var(--radius);
   background: var(--panel);
   box-shadow: var(--shadow-xs);
   transition: border-color 0.15s;
+}
+
+/* 文件名 + 体积/行数这一块：允许收缩，交给 .file-name 出省略号 */
+.file-slot-main {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .file-slot.is-filled {
@@ -981,7 +989,8 @@
 
 /* 长值换行显示而不是横向滚动：横条会占掉 11px 高度，卡片会跟着收缩 */
 .data-list .row {
-  padding: 4px 12px;
+  padding: 3px 12px;
+  line-height: 1.5;
   border-bottom: 1px solid var(--row-line);
   white-space: pre-wrap;
   overflow-wrap: anywhere;

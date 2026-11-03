@@ -339,7 +339,7 @@ export default {
             : `${kind}${formatBytes(file.size)} · ${fmtNum(rowCount)} 行`;
 
         return h('div', { class: 'file-slot-body' }, [
-          h('div', { style: { minWidth: '0' } }, [
+          h('div', { class: 'file-slot-main' }, [
             h('div', { class: 'file-name', title: file.path }, [file.name]),
             h('div', { class: 'hint' }, [meta]),
           ]),
@@ -726,7 +726,7 @@ export default {
       statsEl,
       resultEl,
       h('p', { class: 'hint' }, [
-        '改数据或选项即时重算；xlsx/xlsm 按单元格读，忽略分隔符与编码；编码「自动」先试 UTF-8，不行再按 ANSI。',
+        '改动即时重算；表格按单元格读，忽略分隔符与编码；编码「自动」优先 UTF-8，否则按 ANSI。',
       ])
     );
 
