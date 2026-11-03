@@ -6,14 +6,17 @@
 //!
 //! 规则：空行跳过；按分隔符切分取第 columnIndex 列（0 基）；trim 后为空跳过；唯一值去重保序。
 
+use calamine::{open_workbook_auto, Data, Reader};
 use encoding_rs::{Encoding, BIG5, GB18030, UTF_8, WINDOWS_1252};
 use encoding_rs_io::DecodeReaderBytesBuilder;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fs::File;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
 
 const CHUNK_BYTES: usize = 128 * 1024;
+/// 「自动」编码的嗅探长度：一般文件前 64KB 足以判定
+const SNIFF_BYTES: usize = 64 * 1024;
 
 fn default_delimiter() -> String {
     "\t".to_string()
@@ -103,17 +106,40 @@ impl Collector {
             return;
         }
 
-        let raw_value = columns[self.column_index];
+        self.push_value(columns[self.column_index]);
+    }
+
+    /// trim → 去空 → 去重保序；文本行与表格单元格共用这一套规则
+    fn push_value(&mut self, raw_value: &str) {
         let value = if self.trim {
-            raw_value.trim().to_string()
+            raw_value.trim()
         } else {
-            raw_value.to_string()
+            raw_value
         };
         if value.is_empty() {
             return;
         }
-        if self.seen.insert(value.clone()) {
-            self.unique.push(value);
+        if self.seen.insert(value.to_string()) {
+            self.unique.push(value.to_string());
+        }
+    }
+
+    /// 表格的一行：整行为空算空行；目标列没有内容算「列数不足」
+    fn feed_row(&mut self, row: &[Data]) {
+        let cells: Vec<Option<String>> = row.iter().map(cell_text).collect();
+
+        let has_any = cells
+            .iter()
+            .any(|cell| cell.as_deref().map(|v| !v.trim().is_empty()).unwrap_or(false));
+        if !has_any {
+            self.empty_lines += 1;
+            return;
+        }
+        self.total_lines += 1;
+
+        match cells.get(self.column_index).and_then(|cell| cell.as_deref()) {
+            Some(value) => self.push_value(value),
+            None => self.short_lines += 1,
         }
     }
 
@@ -137,10 +163,90 @@ fn validate(delimiter: &str, column_index: usize) -> Result<(), String> {
     Ok(())
 }
 
+/// 单元格转文本：整数型浮点不要带 ".0"；空单元格返回 None
+fn cell_text(cell: &Data) -> Option<String> {
+    match cell {
+        Data::Empty => None,
+        Data::String(text) => Some(text.clone()),
+        Data::Float(value) => {
+            if value.is_finite() && value.fract() == 0.0 && value.abs() < 1e15 {
+                Some(format!("{}", *value as i64))
+            } else {
+                Some(format!("{value}"))
+            }
+        }
+        Data::Int(value) => Some(value.to_string()),
+        Data::Bool(value) => Some(if *value { "TRUE" } else { "FALSE" }.to_string()),
+        Data::DateTime(value) => Some(value.to_string()),
+        Data::DateTimeIso(value) => Some(value.clone()),
+        Data::DurationIso(value) => Some(value.clone()),
+        Data::Error(_) => None,
+    }
+}
+
+/// 只认 xlsx / xlsm：老 .xls 是二进制 BIFF，两边解析差异大，统一要求另存
+pub fn is_spreadsheet(path: &str) -> bool {
+    let lower = path.to_ascii_lowercase();
+    lower.ends_with(".xlsx") || lower.ends_with(".xlsm")
+}
+
+fn is_legacy_xls(path: &str) -> bool {
+    path.to_ascii_lowercase().ends_with(".xls")
+}
+
+/// 按列读取表格（xlsx/xlsm）：取第一个工作表，第 column_index 列（0 基）
+pub fn scan_spreadsheet(
+    path: &str,
+    column_index: usize,
+    trim: bool,
+) -> Result<ScanResult, String> {
+    let mut workbook = open_workbook_auto(path).map_err(|err| format!("打开表格失败：{err}"))?;
+    let sheet_name = workbook
+        .sheet_names()
+        .first()
+        .cloned()
+        .ok_or_else(|| "表格里没有工作表".to_string())?;
+    let range = workbook
+        .worksheet_range(&sheet_name)
+        .map_err(|err| format!("读取工作表「{sheet_name}」失败：{err}"))?;
+
+    let mut collector = Collector::new("", column_index, trim);
+    for row in range.rows() {
+        collector.feed_row(row);
+    }
+
+    let bytes = std::fs::metadata(path).map(|meta| meta.len()).unwrap_or(0);
+    Ok(collector.snapshot(bytes))
+}
+
+/// 样本是否「像 UTF-8」：末尾被截断的多字节字符不算错误
+fn looks_like_utf8(sample: &[u8]) -> bool {
+    match std::str::from_utf8(sample) {
+        Ok(_) => true,
+        Err(err) => err.error_len().is_none() && err.valid_up_to() + 4 >= sample.len(),
+    }
+}
+
+/// 「自动」：有 BOM 按 BOM，能按 UTF-8 解就 UTF-8，否则按 ANSI（GB18030）
+fn sniff_encoding(file: &mut File) -> &'static Encoding {
+    let mut sample = vec![0u8; SNIFF_BYTES];
+    let read = file.read(&mut sample).unwrap_or(0);
+    let sample = &sample[..read];
+    let _ = file.seek(SeekFrom::Start(0));
+
+    if let Some((encoding, _)) = Encoding::for_bom(sample) {
+        return encoding;
+    }
+    if sample.is_empty() || looks_like_utf8(sample) {
+        return UTF_8;
+    }
+    GB18030
+}
+
 /// GBK 视作 GB18030 子集，用超集解码更稳（中文 Windows 上 GBK 文件最常见的坑）
 fn resolve_encoding(label: Option<&str>) -> &'static Encoding {
     match label.unwrap_or("utf-8").to_ascii_lowercase().as_str() {
-        "gbk" | "gb2312" | "gb18030" | "cp936" => GB18030,
+        "gbk" | "gb2312" | "gb18030" | "cp936" | "ansi" => GB18030,
         "big5" => BIG5,
         "latin1" | "iso-8859-1" => WINDOWS_1252,
         _ => UTF_8,
@@ -151,10 +257,29 @@ pub fn scan_file(options: ScanOptions) -> Result<ScanResult, String> {
     if options.file_path.is_empty() {
         return Err("缺少文件路径".into());
     }
+
+    // 表格走单元格路径：分隔符与编码都不适用
+    if is_spreadsheet(&options.file_path) {
+        return scan_spreadsheet(&options.file_path, options.column_index, options.trim);
+    }
+    if is_legacy_xls(&options.file_path) {
+        return Err("暂不支持旧版 .xls，请在 Excel 里另存为 .xlsx 后再选".into());
+    }
+
     validate(&options.delimiter, options.column_index)?;
 
-    let encoding = resolve_encoding(options.encoding.as_deref());
-    let file = File::open(&options.file_path).map_err(|err| format!("读取文件失败：{err}"))?;
+    let mut file = File::open(&options.file_path).map_err(|err| format!("读取文件失败：{err}"))?;
+    let encoding = if options
+        .encoding
+        .as_deref()
+        .map(|label| label.eq_ignore_ascii_case("auto"))
+        .unwrap_or(false)
+    {
+        sniff_encoding(&mut file)
+    } else {
+        resolve_encoding(options.encoding.as_deref())
+    };
+    let _ = file.seek(SeekFrom::Start(0));
 
     // DecodeReaderBytes 负责流式转码，边界上的多字节字符不会被切断
     let decoded = DecodeReaderBytesBuilder::new()
@@ -234,5 +359,45 @@ mod tests {
     fn 多字符分隔符按整体切分() {
         let result = scan_text(opts("a||1\nb||2\n", "||", 1)).unwrap();
         assert_eq!(result.values, vec!["1", "2"]);
+    }
+
+    #[test]
+    fn 表格按列取单元格并跳过空行() {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../test/fixtures/compare.xlsx");
+        // 第 1 列：表头 + u1001 / u1002 / u1003（u1003 出现两次，去重）
+        let first = scan_spreadsheet(path, 0, true).unwrap();
+        assert_eq!(first.values, vec!["用户ID", "u1001", "u1002", "u1003"]);
+        assert_eq!(first.unique_count, 4);
+        assert_eq!(first.total_lines, 5); // 6 行里有一行整行为空
+        assert_eq!(first.empty_lines, 1);
+
+        // 第 2 列：状态列
+        let second = scan_spreadsheet(path, 1, true).unwrap();
+        assert_eq!(second.values, vec!["状态", "活跃", "流失"]);
+    }
+
+    #[test]
+    fn 表格缺列计为列数不足() {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../test/fixtures/compare.xlsx");
+        let result = scan_spreadsheet(path, 5, true).unwrap();
+        assert!(result.values.is_empty());
+        assert_eq!(result.short_lines, result.total_lines);
+    }
+
+    #[test]
+    fn 扩展名识别与老xls拒绝() {
+        assert!(is_spreadsheet(r"D:\a\b.XLSX"));
+        assert!(is_spreadsheet("c.xlsm"));
+        assert!(!is_spreadsheet("c.csv"));
+
+        let err = scan_file(ScanOptions {
+            file_path: r"D:\nope.xls".to_string(),
+            delimiter: "\t".to_string(),
+            column_index: 0,
+            encoding: None,
+            trim: true,
+        })
+        .unwrap_err();
+        assert!(err.contains(".xlsx"), "实际错误：{err}");
     }
 }

@@ -39,8 +39,9 @@ const SORTS = [
 ];
 
 const ENCODINGS = [
+  { id: 'auto', label: '自动', hint: '先按 UTF-8 解，解不开再按 ANSI，绝大多数文件都对' },
   { id: 'utf-8', label: 'UTF-8', hint: '通用编码，Win11 记事本默认也是它' },
-  { id: 'gbk', label: 'GBK', hint: '中文 Windows 的老默认编码，导入后乱码就换这个' },
+  { id: 'gbk', label: 'ANSI', hint: '中文 Windows 的默认编码（GBK / CP936），导入后乱码就换这个' },
 ];
 
 const SAMPLE = `DIP001
@@ -71,7 +72,7 @@ export default {
       negate: false,
       column: '',
       chunkSize: 0,
-      encoding: 'utf-8',
+      encoding: 'auto',
     };
 
     // ------------------------------------------------------------ 配置记忆

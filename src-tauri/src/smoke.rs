@@ -60,6 +60,18 @@ const SMOKE_JS: &str = r#"(async () => {
             route: location.hash
         });
 
+        // C2：列比对页——验证「表格支持 + 自动/UTF-8/ANSI」这套新选项真的进了包里
+        location.hash = '#/column-compare';
+        await new Promise(done => setTimeout(done, 700));
+        const encLabels = [...document.querySelectorAll('.opt-row .seg')]
+            .map(seg => [...seg.querySelectorAll('button')].map(b => b.textContent))
+            .find(labels => labels.includes('UTF-8')) || [];
+        await report('C2', {
+            desc: (document.getElementById('tool-desc') || {}).textContent || '',
+            encoding: encLabels,
+            mentionsXlsx: (document.body.innerText || '').includes('xlsx')
+        });
+
         // D：真实走一次 IPC（settings.get 走 invoke → Rust 命令）
         try {
             const settings = await window.api.settings.get();
@@ -136,6 +148,9 @@ pub fn attach(app: &AppHandle) {
         let ok = has("\"phase\":\"D\"")
             && has("\"phase\":\"S\"")
             && has("\"phase\":\"H\"")
+            && has("\"phase\":\"C2\"")
+            && has("\"mentionsXlsx\":true")
+            && has("\"encoding\":[\"自动\",\"UTF-8\",\"ANSI\"]")
             && has("\"registered\":true")
             && has("\"ok\":true")
             && has("\"count\":5")

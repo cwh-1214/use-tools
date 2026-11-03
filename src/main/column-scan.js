@@ -15,12 +15,14 @@
  */
 
 const fs = require('node:fs');
+const { scanSpreadsheet, isSpreadsheet, isLegacyXls } = require('./xlsx-scan');
 
 // TextDecoder 支持的 WHATWG 编码名，统一映射，避免各处写错
 const ENCODING_ALIASES = {
   utf8: 'utf-8',
   'utf-8': 'utf-8',
   gbk: 'gb18030', // GBK 视作 GB18030 子集，用超集解码更稳
+  ansi: 'gb18030', // 中文 Windows 的 ANSI 就是 CP936/GBK
   gb2312: 'gb18030',
   gb18030: 'gb18030',
   big5: 'big5',
@@ -28,10 +30,36 @@ const ENCODING_ALIASES = {
 };
 
 const MAX_LINE_BYTES = 8 * 1024 * 1024; // 单行超过 8MB 视为异常，强制截断避免 OOM
+const SNIFF_BYTES = 64 * 1024;
 
 function normalizeEncoding(encoding) {
   const key = String(encoding || 'utf-8').toLowerCase();
   return ENCODING_ALIASES[key] || 'utf-8';
+}
+
+/**
+ * 「自动」：有 BOM 按 BOM，能按 UTF-8 解就 UTF-8，否则按 ANSI（GB18030）。
+ * 只读前 64KB 判断；stream:true 让末尾被截断的多字节字符不算错误。
+ */
+function detectEncoding(filePath) {
+  const fd = fs.openSync(filePath, 'r');
+  try {
+    const buffer = Buffer.alloc(SNIFF_BYTES);
+    const read = fs.readSync(fd, buffer, 0, SNIFF_BYTES, 0);
+    const sample = buffer.subarray(0, read);
+
+    if (sample[0] === 0xef && sample[1] === 0xbb && sample[2] === 0xbf) return 'utf-8';
+    if (read === 0) return 'utf-8';
+
+    try {
+      new TextDecoder('utf-8', { fatal: true }).decode(sample, { stream: true });
+      return 'utf-8';
+    } catch {
+      return 'gb18030';
+    }
+  } finally {
+    fs.closeSync(fd);
+  }
 }
 
 function assertOptions(options) {
@@ -102,10 +130,21 @@ function scanColumn(options) {
   if (typeof filePath !== 'string' || !filePath) {
     throw new Error('缺少文件路径');
   }
+
+  // 表格走单元格路径：分隔符与编码都不适用
+  if (isSpreadsheet(filePath)) {
+    return scanSpreadsheet({ filePath, columnIndex, trim });
+  }
+  if (isLegacyXls(filePath)) {
+    return Promise.reject(new Error('暂不支持旧版 .xls，请在 Excel 里另存为 .xlsx 后再选'));
+  }
+
   assertOptions({ delimiter, columnIndex });
 
   return new Promise((resolve, reject) => {
-    const decoder = new TextDecoder(normalizeEncoding(encoding));
+    const resolved =
+      String(encoding).toLowerCase() === 'auto' ? detectEncoding(filePath) : encoding;
+    const decoder = new TextDecoder(normalizeEncoding(resolved));
     const collector = createCollector({ delimiter, columnIndex, trim });
 
     let bytes = 0;

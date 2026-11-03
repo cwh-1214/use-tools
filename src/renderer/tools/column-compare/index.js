@@ -20,9 +20,13 @@ const DELIMITER_PRESETS = [
 ];
 
 const ENCODINGS = [
+  { id: 'auto', label: '自动', hint: '能按 UTF-8 解开就用 UTF-8，否则按 ANSI 解码' },
   { id: 'utf-8', label: 'UTF-8' },
-  { id: 'gbk', label: 'GBK' },
+  { id: 'gbk', label: 'ANSI', hint: '中文 Windows 的默认编码（GBK / CP936），Excel 导出的 CSV 通常是它' },
 ];
+
+/** 表格文件：按单元格读，分隔符与编码都不适用 */
+const isSheetPath = (name) => /\.(xlsx|xlsm)$/i.test(String(name || ''));
 
 const SOURCE_MODES = [
   { id: 'file', label: '文件' },
@@ -52,7 +56,7 @@ function unescapeDelimiter(raw) {
 export default {
   id: 'column-compare',
   name: '列比对',
-  desc: '比较两个文件或两段文本的指定列，实时找出各自独有与共有的值',
+  desc: '比较两个文件（含 xlsx）或两段文本的指定列，实时找出各自独有与共有的值',
   icon: 'A≠',
   group: '文件处理',
   keywords: ['compare', 'diff', 'column', '比对', '对比', '差异', '列', '粘贴', 'txt', 'csv'],
@@ -66,7 +70,7 @@ export default {
       delimiterId: 'tab',
       customDelimiter: '',
       column: 1,
-      encoding: 'utf-8',
+      encoding: 'auto',
       ignoreCase: false,
       result: null,
       activeTab: 'onlyInA',
@@ -294,7 +298,7 @@ export default {
         const filePath = await api.pickFile({
           title: `选择文件 ${mark}`,
           filters: [
-            { name: '文本文件', extensions: ['txt', 'csv', 'tsv', 'log', 'dat'] },
+            { name: '表格与文本', extensions: ['xlsx', 'xlsm', 'txt', 'csv', 'tsv', 'log', 'dat'] },
             { name: '所有文件', extensions: ['*'] },
           ],
         });
@@ -328,10 +332,11 @@ export default {
 
         // 行数来自最近一次扫描结果，没扫过时只显示体积
         const rowCount = source.scan ? source.scan.totalLines : null;
+        const kind = isSheetPath(file.name) ? '表格 · ' : '';
         const meta =
           rowCount === null
-            ? formatBytes(file.size)
-            : `${formatBytes(file.size)} · ${fmtNum(rowCount)} 行`;
+            ? `${kind}${formatBytes(file.size)}`
+            : `${kind}${formatBytes(file.size)} · ${fmtNum(rowCount)} 行`;
 
         return h('div', { class: 'file-slot-body' }, [
           h('div', { style: { minWidth: '0' } }, [
@@ -425,6 +430,7 @@ export default {
       min: '1',
       step: '1',
       value: '1',
+      dataset: { role: 'column' },
       onInput: (event) => {
         const next = parseInt(event.target.value, 10);
         state.column = Number.isFinite(next) && next > 0 ? next : 1;
@@ -492,7 +498,7 @@ export default {
         if (typeof saved.delimiterId === 'string') state.delimiterId = saved.delimiterId;
         if (typeof saved.customDelimiter === 'string') state.customDelimiter = saved.customDelimiter;
         if (Number.isFinite(saved.column) && saved.column > 0) state.column = saved.column;
-        if (saved.encoding === 'utf-8' || saved.encoding === 'gbk') state.encoding = saved.encoding;
+        if (['auto', 'utf-8', 'gbk'].includes(saved.encoding)) state.encoding = saved.encoding;
         if (typeof saved.ignoreCase === 'boolean') state.ignoreCase = saved.ignoreCase;
         applyConfigUI();
       })
@@ -708,7 +714,7 @@ export default {
       statsEl,
       resultEl,
       h('p', { class: 'hint' }, [
-        '改数据或选项即时重算；分隔符按字面匹配，\\t 表示制表符；编码仅对文件生效，乱码时切 GBK。',
+        '改数据或选项即时重算；xlsx/xlsm 按单元格读，忽略分隔符与编码；编码「自动」先试 UTF-8，不行再按 ANSI。',
       ])
     );
 

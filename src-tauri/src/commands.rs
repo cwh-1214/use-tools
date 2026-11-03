@@ -128,7 +128,15 @@ pub fn read_text(args: ReadTextArgs) -> Result<String, String> {
     let bytes = std::fs::read(&args.path).map_err(|err| format!("读取文件失败：{err}"))?;
     let label = args.encoding.unwrap_or_else(|| "utf-8".to_string());
     let encoding: &Encoding = match label.to_ascii_lowercase().as_str() {
-        "gbk" | "gb2312" | "gb18030" | "cp936" => encoding_rs::GB18030,
+        // 自动：能按 UTF-8 解就用 UTF-8，否则按 ANSI（GB18030）
+        "auto" => {
+            if std::str::from_utf8(&bytes).is_ok() {
+                UTF_8
+            } else {
+                encoding_rs::GB18030
+            }
+        }
+        "gbk" | "gb2312" | "gb18030" | "cp936" | "ansi" => encoding_rs::GB18030,
         "big5" => encoding_rs::BIG5,
         "latin1" | "iso-8859-1" => encoding_rs::WINDOWS_1252,
         _ => UTF_8,

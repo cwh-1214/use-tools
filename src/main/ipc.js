@@ -62,7 +62,18 @@ function registerIpcHandlers() {
 
     const buffer = await fs.readFile(filePath);
     const encoding = String(options?.encoding || 'utf-8').toLowerCase();
-    const label = /^(gbk|gb2312|gb18030)$/.test(encoding) ? 'gb18030' : 'utf-8';
+    let label;
+    if (encoding === 'auto') {
+      // 能按 UTF-8 严格解开就用 UTF-8，否则按 ANSI（GB18030）
+      try {
+        new TextDecoder('utf-8', { fatal: true }).decode(buffer);
+        label = 'utf-8';
+      } catch {
+        label = 'gb18030';
+      }
+    } else {
+      label = /^(gbk|gb2312|gb18030|ansi)$/.test(encoding) ? 'gb18030' : 'utf-8';
+    }
 
     let text;
     try {

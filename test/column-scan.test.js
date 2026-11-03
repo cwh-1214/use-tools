@@ -126,6 +126,48 @@ function check(label, actual, expected) {
   check('文件与粘贴两条路径结果一致', viaText.values, viaFile.values);
   check('文件与粘贴行数一致', viaText.totalLines, viaFile.totalLines);
 
+  // ---- 用例 13：xlsx 按单元格取列（与 Rust scan_spreadsheet 对齐）----
+  const xlsx = path.join(__dirname, 'fixtures', 'compare.xlsx');
+  const sheetA = await scanColumn({ filePath: xlsx, columnIndex: 0, delimiter: '\t' });
+  check('xlsx 第 1 列值', sheetA.values, ['用户ID', 'u1001', 'u1002', 'u1003']);
+  check('xlsx 有效行数', sheetA.totalLines, 5);
+  check('xlsx 空行数', sheetA.emptyLines, 1);
+
+  const sheetB = await scanColumn({ filePath: xlsx, columnIndex: 1, delimiter: '\t' });
+  check('xlsx 第 2 列值', sheetB.values, ['状态', '活跃', '流失']);
+
+  const sheetNone = await scanColumn({ filePath: xlsx, columnIndex: 9, delimiter: '\t' });
+  check('xlsx 缺列全部计入列数不足', sheetNone.shortLines, sheetNone.totalLines);
+  check('xlsx 缺列无值', sheetNone.values, []);
+
+  let xlsError = '';
+  try {
+    await scanColumn({ filePath: p('old.xls'), columnIndex: 0, delimiter: '\t' });
+  } catch (err) {
+    xlsError = err.message;
+  }
+  check('旧版 xls 给出另存提示', xlsError.includes('.xlsx'), true);
+
+  // ---- 用例 14：自动编码（UTF-8 优先，失败回落 ANSI/GBK）----
+  fs.writeFileSync(p('utf8.txt'), '张三\t1\n李四\t2\n', 'utf8');
+  const autoUtf8 = await scanColumn({
+    filePath: p('utf8.txt'),
+    delimiter: '\t',
+    columnIndex: 0,
+    encoding: 'auto',
+  });
+  check('自动编码识别 UTF-8', autoUtf8.values, ['张三', '李四']);
+
+  // "张三" 的 GBK 字节是 D5 C5 C8 FD，不是合法 UTF-8，应回落到 ANSI
+  fs.writeFileSync(p('gbk.txt'), Buffer.from([0xd5, 0xc5, 0xc8, 0xfd, 0x09, 0x31, 0x0a]));
+  const autoGbk = await scanColumn({
+    filePath: p('gbk.txt'),
+    delimiter: '\t',
+    columnIndex: 0,
+    encoding: 'auto',
+  });
+  check('自动编码回落 ANSI', autoGbk.values, ['张三']);
+
   fs.rmSync(dir, { recursive: true, force: true });
 
   console.log(`\n${pass} 通过, ${fail} 失败`);

@@ -158,8 +158,8 @@
   await click('从剪贴板粘贴', 350);
   assert('从剪贴板粘贴可用', output().value, "IN ('K1', 'K2')");
 
-  // ---------------- 阶段 12：导入文件（顺便走一遍 GBK 解码分支） ----------------
-  await click('GBK', 120);
+  // ---------------- 阶段 12：导入文件（顺便走一遍 ANSI 解码分支） ----------------
+  await click('ANSI', 120);
   await click('导入文件', 600);
   assert('导入文件后转换结果', output().value, "IN ('A001', 'A002', 'A003')");
   await click('UTF-8', 120);
