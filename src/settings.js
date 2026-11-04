@@ -271,7 +271,6 @@ export function mountSettings({ root, api }) {
       if (api.app?.dataDir) {
         const dir = await api.app.dataDir();
         dataDirValue.textContent = dir || '未知';
-        dataDirValue.title = dir || '';
       } else {
         dataDirValue.textContent = '当前环境不支持';
       }

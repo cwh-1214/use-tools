@@ -48,6 +48,10 @@
   --code-bg: #eef1f6;
   --code-text: #38414f;
 
+  /* 悬停提示：浅色页面配深色气泡，对比够、又不抢视线 */
+  --tip-bg: #232932;
+  --tip-text: #f3f6fa;
+
   /* 中文用系统里的 Noto Sans SC（可变字重，650 有真实字重，不会假粗）；
      等宽优先 Cascadia Mono，中文回退 Noto Sans SC 而不是系统默认的宋体 */
   --font-sans: "Noto Sans SC", "Segoe UI Variable Text", "Segoe UI",
@@ -101,6 +105,10 @@
     --scroll-thumb-hover: #455061;
     --code-bg: #222934;
     --code-text: #b9c5d6;
+
+    /* 暗色下反过来：浅色气泡 + 深色字 */
+    --tip-bg: #e8ecf2;
+    --tip-text: #12161c;
   }
 }
 

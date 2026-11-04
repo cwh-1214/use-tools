@@ -418,6 +418,41 @@
   box-shadow: var(--shadow-xs);
 }
 
+/* 可编辑项的按钮与输入框同宽：按「自定义」三个字算出来（3 个中文字 + 左右各 11px），
+   和它还是普通按钮时的自然宽度一致；值再长只省略，不撑动整条分段控件。
+   用 em 而不是固定 px，字体缩放时不会错位 */
+.seg button.seg-edit,
+.seg .seg-input {
+  /* 3 个中文字 + 左右 padding 22px + 上下各 1px 边框 */
+  width: calc(3em + 24px);
+}
+
+.seg button.seg-edit {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 「自定义」的就地编辑态：按钮原位换成输入框，高度、圆角、内边距都与按钮一致，
+   宽度由行内 style 固定，切换时不抽动整条分段控件 */
+.seg .seg-input {
+  flex: none;
+  height: 25px;
+  padding: 0 11px;
+  border: 1px solid var(--accent-border);
+  border-radius: 7px;
+  background: var(--panel);
+  font-family: inherit;
+  font-size: 12.5px;
+  color: var(--text);
+  outline: none;
+  box-shadow: var(--shadow-xs);
+}
+
+.seg .seg-input::placeholder {
+  color: var(--text-3);
+}
+
 .card {
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -554,19 +589,10 @@
   color: var(--text-2);
 }
 
-/* 同一行里的第二个标签（如「文本编码」「值排序」），宽度自适应并留出间隔 */
+/* 同一行里的第二个标签（如「排序」），宽度自适应并留出间隔 */
 .opt-label-gap {
   width: auto;
   margin-left: 10px;
-  color: var(--text-3);
-}
-
-/* 一行里塞了两件不相干的事时，用一条竖线把它们分开 */
-.opt-label-sep {
-  width: auto;
-  margin-left: 12px;
-  padding-left: 12px;
-  border-left: 1px solid var(--line);
   color: var(--text-3);
 }
 
@@ -626,24 +652,6 @@
 .sett-value {
   font-size: 13px;
   color: var(--text-2);
-}
-
-/* 行内组合块（标签 + 输入框），显隐时不影响行高 */
-.opt-inline {
-  display: flex;
-  align-items: center;
-  flex-wrap: nowrap;
-  gap: 8px;
-  min-width: 0;
-  max-width: 100%;
-}
-
-/* 与分段控件同高的小输入框，用于行内的补充参数。
-   写成 .input.input-sm 是为了压过后面 .input 的 34px，避免多 2px 的行高跳动 */
-.input.input-sm {
-  height: 26px;
-  padding: 0 9px;
-  font-size: 12.5px;
 }
 
 .field {
@@ -1111,4 +1119,26 @@
   width: 70px;
   text-align: center;
   font-family: var(--font-mono);
+}
+
+/* ---------------- 统一悬停提示 ---------------- */
+/* 挂在 body 上的单例气泡，由 core/tooltip.js 按 [data-tip] 定位；
+   不接收鼠标事件，避免它自己挡住 hover 造成闪烁 */
+.tip-bubble {
+  position: fixed;
+  z-index: 999;
+  max-width: 260px;
+  padding: 6px 9px;
+  border-radius: var(--radius-xs);
+  background: var(--tip-bg);
+  color: var(--tip-text);
+  font-size: 12px;
+  line-height: 1.55;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.tip-bubble.is-on {
+  opacity: 1;
 }

@@ -34,6 +34,56 @@ const requested = argv.filter((arg) => !arg.startsWith('--'));
 const profile =
   process.env.USE_TOOLS_PROFILE === 'release' || flags.has('--release') ? 'release' : 'debug';
 
+// Tauri 把前端资源编进 exe，Rust 逻辑和 tauri.conf.json 也在里面。
+// 这些文件里任何一个比产物新，就必须重编，否则 e2e 测的是上一次构建的界面。
+const SOURCE_DIRS = [
+  path.join(root, 'src'),
+  path.join(root, 'src-tauri', 'src'),
+  path.join(root, 'src-tauri', 'capabilities'),
+];
+const SOURCE_FILES = [
+  path.join(root, 'src-tauri', 'tauri.conf.json'),
+  path.join(root, 'src-tauri', 'Cargo.toml'),
+  path.join(root, 'src-tauri', 'Cargo.lock'),
+  path.join(root, 'src-tauri', 'build.rs'),
+];
+
+function newestSourceMtime() {
+  let newest = 0;
+  const touch = (file) => {
+    try {
+      newest = Math.max(newest, fs.statSync(file).mtimeMs);
+    } catch {
+      /* 文件不存在就忽略 */
+    }
+  };
+  const stack = [...SOURCE_DIRS];
+  while (stack.length > 0) {
+    const dir = stack.pop();
+    let entries;
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const entry of entries) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) stack.push(full);
+      else if (entry.isFile()) touch(full);
+    }
+  }
+  for (const file of SOURCE_FILES) touch(file);
+  return newest;
+}
+
+function isStale(exe) {
+  try {
+    return newestSourceMtime() > fs.statSync(exe).mtimeMs;
+  } catch {
+    return true; // 产物不存在
+  }
+}
+
 function listScenarios() {
   return fs
     .readdirSync(scenarioDir)
@@ -42,15 +92,23 @@ function listScenarios() {
     .sort();
 }
 
+// 只有列比对主场景是一路复用同一对槽位、连续换文件的：先吃默认 caseA/caseB，
+// 再按文件名顺序吃目录里的额外文件。其余场景的目录里有几个文件就用几个。
+const APPEND_TO_DEFAULT = new Set(['column-compare']);
+
 function resolveFixtures(scenario) {
+  const defaults = ['caseA.txt', 'caseB.txt'].map((name) =>
+    path.join(__dirname, 'fixtures', name)
+  );
   const own = path.join(__dirname, 'fixtures', scenario);
-  if (fs.existsSync(own)) {
-    return fs
-      .readdirSync(own)
-      .sort()
-      .map((name) => path.join(own, name));
-  }
-  return ['caseA.txt', 'caseB.txt'].map((name) => path.join(__dirname, 'fixtures', name));
+  if (!fs.existsSync(own)) return defaults;
+
+  const ownFiles = fs
+    .readdirSync(own)
+    .sort()
+    .map((name) => path.join(own, name));
+
+  return APPEND_TO_DEFAULT.has(scenario) ? [...defaults, ...ownFiles] : ownFiles;
 }
 
 function defaultExe() {
@@ -58,20 +116,31 @@ function defaultExe() {
   return path.join(targetDir, profile, name);
 }
 
-/** 返回可执行文件路径；必要时先构建 */
+/** 返回可执行文件路径；产物缺失或源码比产物新时先构建 */
 function ensureExe() {
   if (process.env.USE_TOOLS_EXE) return process.env.USE_TOOLS_EXE;
 
   const exe = defaultExe();
-  if (fs.existsSync(exe) && !flags.has('--rebuild')) return exe;
+  const exists = fs.existsSync(exe);
+  const stale = exists && isStale(exe);
+  if (exists && !stale && !flags.has('--rebuild')) return exe;
 
   if (flags.has('--no-build')) {
-    console.error(`找不到可执行文件：${exe}`);
-    console.error('去掉 --no-build 让脚本自动构建，或先 npm run build:' + profile + '。');
+    if (stale) {
+      console.error(`源码比产物新：${path.relative(root, exe)}`);
+      console.error('Tauri 把前端资源编进 exe，直接跑会测到旧界面；先 npm run build:' + profile + '，或去掉 --no-build。');
+    } else {
+      console.error(`找不到可执行文件：${exe}`);
+      console.error('去掉 --no-build 让脚本自动构建，或先 npm run build:' + profile + '。');
+    }
     process.exit(1);
   }
 
-  console.log(`▶ 构建 ${profile} 产物（首次较慢，之后增量）...`);
+  console.log(
+    stale
+      ? `▶ 源码有改动，重新构建 ${profile} 产物（Tauri 会把前端资源编进 exe）...`
+      : `▶ 构建 ${profile} 产物（首次较慢，之后增量）...`
+  );
   const args = ['build', '--manifest-path', path.join('src-tauri', 'Cargo.toml')];
   if (profile === 'release') args.push('--release');
 

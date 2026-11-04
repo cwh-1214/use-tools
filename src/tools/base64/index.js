@@ -51,8 +51,8 @@ export default {
 
     const modeSeg = seg(
       [
-        { id: 'encode', label: '编码', hint: '文本 → Base64' },
-        { id: 'decode', label: '解码', hint: 'Base64 → 文本（按 UTF-8 解析）' },
+        { id: 'encode', label: '编码' },
+        { id: 'decode', label: '解码' },
       ],
       mode,
       (id) => setMode(id)
@@ -62,7 +62,6 @@ export default {
       'button',
       {
         class: 'btn btn-sm',
-        title: '把 + / 换成 - _ 并去掉尾部 =，适合放进 URL 或文件名',
         onClick: () => {
           urlSafe = !urlSafe;
           urlSafeBtn.classList.toggle('btn-primary', urlSafe);
@@ -78,7 +77,6 @@ export default {
       'button',
       {
         class: 'btn btn-sm',
-        title: '把结果放回输入框，并切换编码 / 解码方向',
         onClick: () => {
           const produced = output.value;
           if (!produced) return;

@@ -1,6 +1,6 @@
 {
   "name": "use-tools",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "description": "桌面工具集合体：一个外壳 + 一堆即插即用的小工具",
   "scripts": {

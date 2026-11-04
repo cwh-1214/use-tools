@@ -1,6 +1,6 @@
-// 端到端场景：列比对（文件模式 → 粘贴模式 → 剪贴板粘贴）
-// 由 scripts/e2e.js 交给 Tauri 冒烟钩子执行，配合 USE_TOOLS_FIXTURE_QUEUE 免去文件选择框。
-// fixtures：caseA = DIP001/002/003/005/010，caseB = DIP001/002/004/005/011
+// 端到端场景：列比对（文本文件 → 粘贴 → 剪贴板 → 自定义分隔符 → 表格 → 超长文件名）
+// 由 test/run-e2e.js 交给 Tauri 冒烟钩子执行，配合 USE_TOOLS_FIXTURE_QUEUE 免去文件选择框。
+// fixtures：默认 caseA/caseB（DIP001..010 两列），追加 01-a.xlsx / 02-b.xlsx 与 03-超长…txt
 
 (async () => {
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -31,8 +31,20 @@
   assert('数据源槽位数量', slots.length, 2);
   assert('默认是文件模式', Boolean(slots[0].querySelector('.file-empty')), true);
 
+  // 分隔符：制表符 / 空格 / 逗号 / 竖线 / 自定义
+  assert(
+    '分隔符选项',
+    Array.from(document.querySelector('.opt-panel .seg').querySelectorAll('button')).map(
+      (b) => b.textContent
+    ),
+    ['制表符', '空格', '逗号', '竖线', '自定义']
+  );
+
+  // 空槽位是「选择文件」，已有文件时换成「更换」——同一个动作，两种文案
   const pickBtn = (slot) =>
-    Array.from(slot.querySelectorAll('button')).find((b) => b.textContent.includes('选择文件'));
+    Array.from(slot.querySelectorAll('button')).find(
+      (b) => b.textContent.includes('选择文件') || b.textContent.includes('更换')
+    );
 
   assert('A 侧有选择文件按钮', Boolean(pickBtn(slots[0])), true);
   pickBtn(slots[0]).click();
@@ -98,20 +110,105 @@
   ), true);
 
   // ---------------- 阶段 4：从剪贴板粘贴 ----------------
-  await window.api.clipboard.writeText('CLIP001\t剪贴板数据\n');
+  // 剪贴板可能被剪贴板管理器占用（远程控制软件的同步很常见），重试几次
+  let clipboardOk = false;
+  for (let i = 0; i < 4 && !clipboardOk; i += 1) {
+    try {
+      await window.api.clipboard.writeText('CLIP001\t剪贴板数据\n');
+      clipboardOk = true;
+    } catch {
+      await sleep(250);
+    }
+  }
+
   const pasteBtn = Array.from(slots[1].querySelectorAll('.slot-foot button')).find(
     (b) => b.textContent === '从剪贴板粘贴'
   );
   assert('剪贴板粘贴按钮存在', Boolean(pasteBtn), true);
-  pasteBtn.click();
-  await sleep(1100);
 
-  assert('粘贴按钮把剪贴板内容填入输入框', textarea.value.indexOf('CLIP001') === 0, true);
-  assert('剪贴板数据参与比对（B=1, A独有5, 共有0）', stats(), ['5', '1', '5', '1', '0', '6']);
+  if (clipboardOk) {
+    pasteBtn.click();
+    await sleep(1100);
+    assert('粘贴按钮把剪贴板内容填入输入框', textarea.value.indexOf('CLIP001') === 0, true);
+    assert('剪贴板数据参与比对（B=1, A独有5, 共有0）', stats(), ['5', '1', '5', '1', '0', '6']);
+  } else {
+    console.log('  skip 剪贴板粘贴：剪贴板被其他程序占用');
+  }
+
+  // ---------------- 阶段 5：自定义分隔符接进列比对的实时重算 ----------------
+  // 组件本身的行为（原地变输入框、回车收起）由 sql-in 场景覆盖，这里只验接线
+  document.querySelector('.opt-panel .seg button[data-id="custom"]').click();
+  await sleep(250);
+
+  const delimInput = document.querySelector('.opt-panel .seg-input');
+  assert('点击自定义后原地变成输入框', Boolean(delimInput), true);
+
+  delimInput.value = ',';
+  delimInput.dispatchEvent(new Event('input', { bubbles: true }));
+  await sleep(1100);
+  assert('自定义分隔符触发重算', /is-ok/.test(statusClass()), true);
+
+  delimInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  await sleep(150);
+  assert(
+    '回车收起后按钮显示已填的分隔符',
+    document.querySelector('.opt-panel .seg button[data-id="custom"]')?.textContent,
+    ','
+  );
+
+  // ---------------- 阶段 6：换成表格，按单元格读列（忽略分隔符与编码） ----------------
+  const fileModeBtn = Array.from(slots[1].querySelectorAll('.seg button')).find(
+    (b) => b.textContent === '文件'
+  );
+  if (fileModeBtn && !fileModeBtn.classList.contains('is-on')) fileModeBtn.click();
+  await sleep(300);
+
+  pickBtn(slots[0]).click();
+  await sleep(450);
+  pickBtn(slots[1]).click();
+  await sleep(1400); // 读表格 + 防抖 + IPC
+
+  assert('A 侧文件名是 a.xlsx', /a\.xlsx/.test(slots[0].textContent), true);
+  assert('B 侧文件名是 b.xlsx', /b\.xlsx/.test(slots[1].textContent), true);
+  assert('文件行标注为表格', /表格/.test(slots[0].querySelector('.hint')?.textContent || ''), true);
+  assert('表格行数被读出', /4 行/.test(slots[0].querySelector('.hint')?.textContent || ''), true);
+  assert('表格统计卡（A=4,B=4,A独有1,B独有1,共有3,合并5）', stats(), ['4', '4', '1', '1', '3', '5']);
+  assert('表格标签页计数', tabCounts(), ['1', '1', '3', '5']);
+  assert('表格 A 独有值', rows(), ['u1002']);
+
+  // 第 2 列在表格里不存在，应全部计入「列数不足」
+  const columnInput = document.querySelector('input[data-role="column"]');
+  columnInput.value = '2';
+  columnInput.dispatchEvent(new Event('input', { bubbles: true }));
+  await sleep(1200);
+  assert('第 2 列无值时统计归零', stats(), ['0', '0', '0', '0', '0', '0']);
+
+  columnInput.value = '1';
+  columnInput.dispatchEvent(new Event('input', { bubbles: true }));
+  await sleep(1200);
+  assert('改回第 1 列恢复结果', stats(), ['4', '4', '1', '1', '3', '5']);
+
+  // ---------------- 阶段 7：超长文件名不能把槽位撑破 ----------------
+  pickBtn(slots[0]).click();
+  await sleep(1000);
+
+  const longName = slots[0].querySelector('.file-name');
+  assert('文件名已渲染', Boolean(longName), true);
+  assert('确实是长文件名', longName.textContent.length > 50, true);
+  assert('文件名被截断（出现省略号）', longName.scrollWidth > longName.clientWidth, true);
+  assert('文件槽位没有横向溢出', slots[0].scrollWidth - slots[0].clientWidth <= 1, true);
+  assert('文件名宽度小于槽位宽度', longName.clientWidth < slots[0].clientWidth, true);
+
+  const slotRight = slots[0].getBoundingClientRect().right;
+  const outside = Array.from(slots[0].querySelectorAll('button')).filter(
+    (b) => b.getBoundingClientRect().right > slotRight + 1
+  );
+  assert('操作按钮都在槽位内', outside.map((b) => b.textContent), []);
+  assert('文件名不挂提示', longName.hasAttribute('data-tip'), false);
 
   if (failures.length > 0) {
     throw new Error(`${failures.length} 项断言失败：${failures.join(' | ')}`);
   }
 
-  return { ok: true, assertions: 22 };
+  return { ok: true, assertions: 41 };
 })();

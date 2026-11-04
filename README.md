@@ -8,7 +8,7 @@
 
 ## 下载
 
-不想装工具链就直接下绿色版：[Releases](https://github.com/cwh-1214/use-tools/releases/latest) 里的 `use-tools-0.1.1.exe`，单文件 4.2 MB，双击即用。
+不想装工具链就直接下绿色版：[Releases](https://github.com/cwh-1214/use-tools/releases/latest) 里的 `use-tools-0.1.2.exe`，单文件 4.2 MB，双击即用。
 
 - 系统要求：Windows 10/11（用系统自带的 WebView2 运行时，Win11 已内置，Win10 若缺会自动提示安装）
 - 免安装、不写注册表；设置与窗口位置存在 `%APPDATA%\com.usertools.desktop\settings.json`
@@ -70,21 +70,20 @@ npm run package      # 发布打包：release 构建 + 冒烟 + dist/ 下的 exe
 
 把散落的数据整理成能直接用的 SQL 条件，或反向吐出纯净数据列。
 
-- **输入很宽松**：多行、逗号 / 全角逗号 / 分号 / 制表符 / 空格分隔都行，混着来也行。
+- **输入很宽松**：多行、逗号（含中文逗号）、制表符、空格、竖线混着来都行，都交给「自动」处理。
 - **引号感知切分**：`'A,B'` 是一个值，不会被逗号切开；已带引号的值不会变成 `''A''`。
 - **能直接粘整段 SQL**：`id IN (...)`、`NOT IN (...)`、`VALUES (...)` 的外壳自动剥掉，语句里的列名会被复用，方向开关跟着切。
 - **四种输出**：`IN 单行` / `IN 多行`（带缩进）/ `值列表`（每行带尾逗号）/ `纯数据列`（裸值）。
 - **细节**：数字自动不加引号、`null` 输出 NULL、单引号按 SQL 规则转义、可去重 / 排序 / 每 N 个值分片（Oracle 的 1000 上限）。
-- 支持从剪贴板粘贴、导入 txt/csv/sql/log/dat 文件（编码默认自动识别，也可指定 UTF-8 / ANSI）；xlsx 这类二进制文件会被拦下。
+- 支持从剪贴板粘贴，或直接把数据粘进输入框；**不读文件**——数据从剪贴板进，结果从剪贴板或「保存结果」出。要处理文件里的数据，用列比对（支持 xlsx / 文本导入）或在编辑器里打开后复制。
 
 ## 导入格式
 
-三个吃文本的工具都只接受纯文本类扩展名，文件选择框和代码里各挡一道（Tauri 的对话框也会带上过滤器）：
+只有 JSON 格式化和列比对支持导入文件（SQL IN 生成器只接受粘贴内容）。两个工具都只接受白名单扩展名，文件选择框和代码里各挡一道（Tauri 的对话框也会带上过滤器）：
 
 | 工具 | 允许导入 |
 | --- | --- |
 | JSON 格式化 | `.json` `.txt` |
-| SQL IN 生成器 | `.txt` `.csv` `.sql` `.log` `.dat` |
 | 列比对 | `.xlsx` `.xlsm` `.txt` `.csv` `.tsv` `.log` `.dat` |
 
 选到不支持的格式（比如把 `.xlsx` 选进 JSON）会提示「只能导入 … 文件」，不会读盘。
@@ -210,11 +209,11 @@ export default {
 分三层，都不需要人工点界面：
 
 - `npm test` —— 离线测试：`test/unit/xlsx.test.js` 验 xlsx 生成器（部件结构、XML 转义、表名清洗、base64 往返）；`cargo test` 验列扫描语义（分隔符、空行/短行、表格缺列）。
-- `npm run test:e2e` —— 自动构建 debug 产物（缺失时），起真实 Tauri 窗口，把 `test/e2e/<场景>.js` 注入页面，点按钮跑完整流程并断言界面结果。不带参数跑全部；只跑一个用 `npm run test:e2e sql-in`；测发布版用 `npm run test:e2e:release`。
+- `npm run test:e2e` —— 产物缺失**或源码比产物新**时自动 `cargo build`（Tauri 会把 `src/` 编进 exe，改了 JS/CSS 不重编就会测到旧界面），再起真实 Tauri 窗口，把 `test/e2e/<场景>.js` 注入页面，点按钮跑完整流程并断言界面结果。不带参数跑全部；只跑一个用 `npm run test:e2e sql-in`；测发布版用 `npm run test:e2e:release`。
 - `npm run check` —— 提交前完整校验：`cargo fmt --check` + 单测 + 全部 e2e。
 - `npm run lint` —— clippy 严格模式（`-D warnings`）。
 
-e2e 默认走 `.build/target/debug` 的产物（增量构建快）；`--rebuild` 强制重建，`--no-build` 禁止自动构建，`USE_TOOLS_EXE` 可指向任意产物。
+e2e 默认走 `.build/target/debug` 的产物（增量构建快）；`--rebuild` 强制重建，`--no-build` 禁止自动构建（若源码比产物新会直接报错，避免测到旧资源），`USE_TOOLS_EXE` 可指向任意产物。
 
 机制是一组只在冒烟模式（`USE_TOOLS_SMOKE=1`）生效的环境变量：
 
@@ -226,7 +225,7 @@ e2e 默认走 `.build/target/debug` 的产物（增量构建快）；`--rebuild`
 | `USE_TOOLS_CONFIG_DIR` | 独立配置目录，测试不碰用户真实设置 |
 | `USE_TOOLS_SMOKE_WINDOW` | 固定窗口尺寸（如 `1120x720`），布局断言才稳定 |
 
-给新工具加交互测试时，在 `test/e2e/` 放一个同名场景脚本即可；需要样例文件就建 `test/fixtures/<场景名>/`，里面的文件会按文件名顺序进队列。
+给新工具加交互测试时，在 `test/e2e/` 放一个同名场景脚本即可；需要样例文件就建 `test/fixtures/<场景名>/`，里面的文件会按文件名顺序进队列。列比对主场景是例外：它要在同一对槽位里连续换文件，默认的 `caseA.txt` / `caseB.txt` 会排在目录内文件之前。
 
 ## 打包（exe 约 4.2MB）
 

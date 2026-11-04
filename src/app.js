@@ -6,6 +6,7 @@
 import { tools } from './tools/index.js';
 import { validateTools, groupTools, filterTools, findTool } from './core/registry.js';
 import { h, clear } from './core/dom.js';
+import { initTooltip } from './core/tooltip.js';
 import { mountSettings } from './settings.js';
 
 const SETTINGS_ROUTE = 'settings';
@@ -53,7 +54,7 @@ function renderSidebar() {
           'button',
           {
             class: `tool-item${tool.id === activeToolId ? ' is-active' : ''}`,
-            title: tool.desc || tool.name,
+            'aria-label': tool.desc || tool.name,
             onClick: () => {
               location.hash = `#/${tool.id}`;
             },
@@ -322,6 +323,8 @@ async function boot() {
     });
   }
 
+  initTooltip();
+
   window.addEventListener('hashchange', route);
   route();
   restoreLastRoute();
@@ -329,9 +332,8 @@ async function boot() {
   if (window.api?.info) {
     const info = await window.api.info();
     els.version.textContent = `v${info.version}`;
-    // 侧边栏只有 246px，正文只放主版本号，完整信息挂在 tooltip 上
+    // 侧边栏只有 246px，只放主版本号
     els.footInfo.textContent = `Tauri ${info.tauri}`;
-    els.footInfo.title = `Tauri ${info.tauri} · WebView2 ${String(info.webview).split('.')[0]}`;
   }
 
   console.log(`app-ready tools=${tools.length}`);

@@ -5,7 +5,7 @@ import { isAllowedFile, extensionList } from '../../core/files.js';
 // 只收纯文本类的 JSON；xlsx / pdf 这类二进制文件读出来是乱码，直接挡在门外
 const IMPORT_EXTENSIONS = ['json', 'txt'];
 
-const SAMPLE = '{"name":"use-tools","version":"0.1.1","features":["json","base64","timestamp"],"ready":true}';
+const SAMPLE = '{"name":"use-tools","version":"0.1.2","features":["json","base64","timestamp"],"ready":true}';
 
 function stringify(value, indent) {
   return JSON.stringify(value, null, indent);
@@ -87,9 +87,9 @@ export default {
 
     const indentSeg = seg(
       [
-        { id: '2', label: '2 空格', hint: '每层缩进 2 个空格' },
-        { id: '4', label: '4 空格', hint: '每层缩进 4 个空格' },
-        { id: '0', label: '单行', hint: '压成一行，去掉所有换行与缩进' },
+        { id: '2', label: '2 空格' },
+        { id: '4', label: '4 空格' },
+        { id: '0', label: '单行' },
       ],
       String(indent),
       (id) => {
@@ -102,7 +102,6 @@ export default {
       'button',
       {
         class: 'btn btn-sm',
-        title: '递归排序对象键，数组顺序不变',
         onClick: () => {
           sortKeys = !sortKeys;
           sortBtn.classList.toggle('btn-primary', sortKeys);

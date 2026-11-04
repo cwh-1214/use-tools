@@ -224,7 +224,26 @@ pub fn attach(app: &AppHandle) {
                     return;
                 }
             };
-            let _ = win.eval(wrap_script(&source));
+            // 注入前先确认页面已经落在应用自己的 URL 上：窗口起来不等于文档加载完，
+            // 过早 eval 会打在 about:blank 上，那里没有 __TAURI__，脚本会静默失败
+            for _ in 0..20 {
+                let ready = win
+                    .url()
+                    .map(|url| url.scheme() != "about")
+                    .unwrap_or(false);
+                if ready {
+                    break;
+                }
+                thread::sleep(Duration::from_millis(250));
+            }
+            println!(
+                "[smoke] 注入时页面地址 = {:?}",
+                win.url().map(|u| u.to_string())
+            );
+
+            if let Err(err) = win.eval(wrap_script(&source)) {
+                println!("[smoke] eval 失败: {err}");
+            }
 
             let deadline = Instant::now() + Duration::from_secs(90);
             loop {

@@ -1,5 +1,5 @@
 import { h, clear, formatBytes, debounce } from '../../core/dom.js';
-import { seg, setSegValue, statusBar } from '../../core/ui.js';
+import { seg, editableSeg, setSegValue, setSegEditValue, statusBar } from '../../core/ui.js';
 import { isAllowedFile, extensionList } from '../../core/files.js';
 import { buildXlsx, bytesToBase64 } from '../../core/xlsx.js';
 
@@ -15,16 +15,16 @@ import { buildXlsx, bytesToBase64 } from '../../core/xlsx.js';
 
 const DELIMITER_PRESETS = [
   { id: 'tab', label: '制表符', value: '\t' },
+  { id: 'space', label: '空格', value: ' ' },
   { id: 'comma', label: '逗号', value: ',' },
-  { id: 'semicolon', label: '分号', value: ';' },
   { id: 'pipe', label: '竖线', value: '|' },
   { id: 'custom', label: '自定义', value: '' },
 ];
 
 const ENCODINGS = [
-  { id: 'auto', label: '自动', hint: '能按 UTF-8 解开就用 UTF-8，否则按 ANSI 解码' },
+  { id: 'auto', label: '自动' },
   { id: 'utf-8', label: 'UTF-8' },
-  { id: 'gbk', label: 'ANSI', hint: '中文 Windows 的默认编码（GBK / CP936），Excel 导出的 CSV 通常是它' },
+  { id: 'gbk', label: 'ANSI' },
 ];
 
 /** 表格文件：按单元格读，分隔符与编码都不适用 */
@@ -103,7 +103,9 @@ export default {
         if (!state.customDelimiter) return null;
         return unescapeDelimiter(state.customDelimiter);
       }
-      return DELIMITER_PRESETS.find((preset) => preset.id === state.delimiterId).value;
+      // 旧配置可能存着已经下线的选项（如「分号」），找不到就退回制表符
+      const preset = DELIMITER_PRESETS.find((item) => item.id === state.delimiterId);
+      return preset ? preset.value : '\t';
     }
 
     // ------------------------------------------------------------ 状态栏
@@ -359,7 +361,7 @@ export default {
 
         return h('div', { class: 'file-slot-body' }, [
           h('div', { class: 'file-slot-main' }, [
-            h('div', { class: 'file-name', title: file.path }, [file.name]),
+            h('div', { class: 'file-name' }, [file.name]),
             h('div', { class: 'hint' }, [meta]),
           ]),
           h('div', { class: 'spacer' }),
@@ -421,26 +423,21 @@ export default {
     const refreshSlot = (mark) => (mark === 'A' ? slotA : slotB).refresh();
 
     // ------------------------------------------------------------ 选项
-    // 自定义分隔符：用 .opt-inline 包一层 + .input-sm（26px），
-    // 出现时不会把整行撑高 2px（标准 .input 是 34px）
-    const customWrap = h('div', { class: 'opt-inline', style: { display: 'none' } }, [
-      h('input', {
-        class: 'input input-sm',
-        style: { width: '120px' },
-        placeholder: '如 ; 或 \\t',
-        onInput: (event) => {
-          state.customDelimiter = event.target.value;
-          persistConfig();
-          scheduleRun();
-        },
-      }),
-    ]);
-
-    const delimGroup = seg(DELIMITER_PRESETS, state.delimiterId, (id) => {
-      state.delimiterId = id;
-      customWrap.style.display = id === 'custom' ? '' : 'none';
-      persistConfig();
-      scheduleRun(0);
+    // 与 SQL IN 同一套交互：点「自定义」，按钮原地变成输入框
+    const delimGroup = editableSeg(DELIMITER_PRESETS, state.delimiterId, {
+      editable: 'custom',
+      value: state.customDelimiter,
+      placeholder: '如 \\t',
+      onPick: (id) => {
+        state.delimiterId = id;
+        persistConfig();
+        scheduleRun(0);
+      },
+      onInput: (text) => {
+        state.customDelimiter = text;
+        persistConfig();
+        scheduleRun();
+      },
     });
 
     // 一个「标签 + 它的控件」是不可拆的组：宽度够就并排，不够就整组换行
@@ -453,8 +450,9 @@ export default {
     const columnInput = h('input', {
       class: 'input input-inline',
       type: 'number',
-      min: '1',
-      step: '1',
+      // 不挂 min/step：原生约束校验会让「输入 0」变成「请输入一个有效的值」气泡，
+      // 取值合法性由 onInput 自己纠正
+      step: 'any',
       value: '1',
       dataset: { role: 'column' },
       onInput: (event) => {
@@ -485,9 +483,8 @@ export default {
     const displayLimitInput = h('input', {
       class: 'input input-inline',
       type: 'number',
-      min: '1',
-      max: String(DISPLAY_LIMIT_MAX),
-      step: '1',
+      // 同上：max=2000 时输入 5000 会触发原生「无效值」气泡；超限由 onInput 夹到上限
+      step: 'any',
       value: String(state.displayLimit),
       dataset: { role: 'display-limit' },
       onInput: (event) => {
@@ -535,8 +532,7 @@ export default {
 
     function applyConfigUI() {
       setSegValue(delimGroup, state.delimiterId);
-      customWrap.style.display = state.delimiterId === 'custom' ? '' : 'none';
-      customWrap.querySelector('input').value = state.customDelimiter;
+      setSegEditValue(delimGroup, state.customDelimiter);
       columnInput.value = String(state.column);
       setSegValue(encodingGroup, state.encoding);
       ignoreCaseBox.checked = state.ignoreCase;
@@ -551,7 +547,10 @@ export default {
         if (touched) return; // 用户已经先动了手，历史配置不作数
         const saved = settings?.tools?.['column-compare'];
         if (!saved) return;
-        if (typeof saved.delimiterId === 'string') state.delimiterId = saved.delimiterId;
+        // 校验后再用：旧配置里可能存着已经下线的「分号」，直接套会找不到对应预设
+        if (DELIMITER_PRESETS.some((item) => item.id === saved.delimiterId)) {
+          state.delimiterId = saved.delimiterId;
+        }
         if (typeof saved.customDelimiter === 'string') state.customDelimiter = saved.customDelimiter;
         if (Number.isFinite(saved.column) && saved.column > 0) state.column = saved.column;
         if (['auto', 'utf-8', 'gbk'].includes(saved.encoding)) state.encoding = saved.encoding;
@@ -758,13 +757,13 @@ export default {
         slotB.el,
       ]),
       // 与 SQL IN 一致的选项面板：标签左对齐，右侧放内容级操作。
-      // 「分隔符 + 取第几列」都属于怎么取值，宽度够就排在同一行；
-      // 编码、忽略大小写、展示行数放第二行——否则切到「自定义」多出输入框时会把这一行挤散
+      // 「分隔符（含就地编辑的自定义）+ 取第几列」都属于怎么取值，排在同一行；
+      // 编码、忽略大小写、展示行数放第二行
       h('div', { class: 'card opt-panel' }, [
         h('div', { class: 'opt-group' }, [
           h('div', { class: 'opt-group-title' }, ['比对规则']),
           h('div', { class: 'opt-row' }, [
-            optItem('分隔符', [delimGroup, customWrap]),
+            optItem('分隔符', [delimGroup]),
             optItem('取第几列', [columnInput]),
           ]),
           h('div', { class: 'opt-row' }, [
@@ -785,7 +784,7 @@ export default {
       statsEl,
       resultEl,
       h('p', { class: 'hint' }, [
-        '改动即时重算；表格按单元格读，忽略分隔符与编码；编码「自动」优先 UTF-8，否则按 ANSI。',
+        '改动即时重算；表格按单元格读，忽略分隔符与编码；编码「自动」有 BOM 按 BOM，否则 UTF-8 优先。',
       ])
     );
 

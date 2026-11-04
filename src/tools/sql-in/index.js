@@ -1,7 +1,16 @@
 import { h, debounce } from '../../core/dom.js';
-import { seg, setSegValue, toolbar, field, statusBar, copyButton, hintLine } from '../../core/ui.js';
+import {
+  seg,
+  editableSeg,
+  setSegValue,
+  setSegEditValue,
+  toolbar,
+  field,
+  statusBar,
+  copyButton,
+  hintLine,
+} from '../../core/ui.js';
 import { convert, stripShell, normalizeNewlines } from './parse.js';
-import { isAllowedFile, extensionList } from '../../core/files.js';
 
 /**
  * SQL IN 生成器
@@ -9,49 +18,43 @@ import { isAllowedFile, extensionList } from '../../core/files.js';
  * 也能反向吐出纯净的数据列。
  */
 
-// 每个选项都带 hint：界面上只放短标签，鼠标悬停补一句「这个选项到底产出什么」
-// 只收纯文本 / SQL；xlsx、docx 这类二进制文件不能直接当文本读
-const IMPORT_EXTENSIONS = ['txt', 'csv', 'sql', 'log', 'dat'];
-
+// 选项不挂提示：输出区实时刷新，点一下就能看到结果
 const MODES = [
-  { id: 'in-line', label: 'IN 单行', hint: '输出成一行 IN (…)，直接贴进 SQL' },
-  { id: 'in-block', label: 'IN 多行', hint: '每个值占一行，长列表更好读' },
-  { id: 'list', label: '值列表', hint: '每行末尾带逗号，方便粘进已有的括号' },
-  { id: 'plain', label: '纯数据列', hint: '只输出原始值，不加引号、不带 IN' },
+  { id: 'in-line', label: 'IN 单行' },
+  { id: 'in-block', label: 'IN 多行' },
+  { id: 'list', label: '值列表' },
+  { id: 'plain', label: '纯数据列' },
 ];
 
 const SEPARATORS = [
-  { id: 'auto', label: '自动', hint: '自动识别换行、逗号、分号、制表符' },
-  { id: 'newline', label: '换行', hint: '只按换行切分；值本身带逗号时用这个' },
-  { id: 'comma', label: '逗号', hint: '按半角 / 全角逗号切分' },
-  { id: 'semicolon', label: '分号', hint: '按分号切分' },
-  { id: 'tab', label: '制表符', hint: '从 Excel 复制出来的一列通常是这个' },
-  { id: 'space', label: '空格', hint: '按空格切分' },
-  { id: 'custom', label: '自定义', hint: '自己填，按字面匹配，支持多字符（如 ||）' },
+  // 「自动」是唯一需要解释的：它到底认哪几种分隔符，光看按钮看不出来
+  // 认哪几种直接列清楚；「全角」单列一项，表示中文标点也当分隔符
+  { id: 'auto', label: '自动', hint: '换行、制表符、空格、逗号、全角、竖线全切' },
+  { id: 'newline', label: '换行' },
+  { id: 'tab', label: '制表符' },
+  { id: 'space', label: '空格' },
+  { id: 'comma', label: '逗号' },
+  { id: 'pipe', label: '竖线' },
+  { id: 'custom', label: '自定义' },
 ];
 
 const QUOTES = [
-  { id: 'single', label: '单引号', hint: "值包成 'abc'" },
-  { id: 'double', label: '双引号', hint: '值包成 "abc"' },
-  { id: 'none', label: '不加引号', hint: '只输出值本身，适合数字或已带引号的数据' },
+  { id: 'single', label: '单引号' },
+  { id: 'double', label: '双引号' },
+  { id: 'none', label: '不加引号' },
 ];
 
+// 排序是 Intl.Collator + numeric 的自然顺序（DIP2 在 DIP10 前），结果一眼能看出来
 const SORTS = [
-  { id: 'none', label: '原序', hint: '保持输入里的先后顺序' },
-  { id: 'asc', label: '升序', hint: '按字符编码从小到大' },
-  { id: 'desc', label: '降序', hint: '按字符编码从大到小' },
-];
-
-const ENCODINGS = [
-  { id: 'auto', label: '自动', hint: '先按 UTF-8 解，解不开再按 ANSI，绝大多数文件都对' },
-  { id: 'utf-8', label: 'UTF-8', hint: '通用编码，Win11 记事本默认也是它' },
-  { id: 'gbk', label: 'ANSI', hint: '中文 Windows 的默认编码（GBK / CP936），导入后乱码就换这个' },
+  { id: 'none', label: '原序' },
+  { id: 'asc', label: '升序' },
+  { id: 'desc', label: '降序' },
 ];
 
 const SAMPLE = `DIP001
 DIP002
 DIP003, DIP004
-'DIP005'；DIP006`;
+'DIP005'|DIP006`;
 
 const fmt = (n) => (Number.isFinite(n) ? n.toLocaleString('zh-CN') : '—');
 
@@ -76,7 +79,6 @@ export default {
       negate: false,
       column: '',
       chunkSize: 0,
-      encoding: 'auto',
     };
 
     // ------------------------------------------------------------ 配置记忆
@@ -125,31 +127,25 @@ export default {
     const outputMeta = h('span', { class: 'meta' }, ['0 字符']);
 
     // ------------------------------------------------------------ 选项
-    // 自定义分隔符：标签和输入框打包在一起，显示/隐藏时整块出现，
-    // 输入框用 .input-sm 与分段控件同高（26px），避免出现时把整行撑高
-    const customWrap = h('div', { class: 'opt-inline', style: { display: 'none' } }, [
-      h('span', { class: 'opt-label opt-label-gap' }, ['自定义分隔符']),
-      h('input', {
-        class: 'input input-sm',
-        style: { width: '110px' },
-        placeholder: '如 | 或 \\t',
-        onInput: (event) => {
-          state.customSeparator = event.target.value;
-          schedule();
-        },
-      }),
-    ]);
-
     const modeSeg = seg(MODES, state.mode, (id) => {
       state.mode = id;
       syncInOnly();
       transform();
     });
 
-    const separatorSeg = seg(SEPARATORS, state.separatorId, (id) => {
-      state.separatorId = id;
-      customWrap.style.display = id === 'custom' ? '' : 'none';
-      transform();
+    // 点「自定义」时按钮原地变成输入框，不再在旁边多挂一个自定义输入框
+    const separatorSeg = editableSeg(SEPARATORS, state.separatorId, {
+      editable: 'custom',
+      value: state.customSeparator,
+      placeholder: '如 \\t',
+      onPick: (id) => {
+        state.separatorId = id;
+        transform();
+      },
+      onInput: (text) => {
+        state.customSeparator = text;
+        schedule();
+      },
     });
 
     const quoteSeg = seg(QUOTES, state.quote, (id) => {
@@ -164,8 +160,8 @@ export default {
 
     const negateSeg = seg(
       [
-        { id: 'in', label: 'IN', hint: '生成 IN (…)' },
-        { id: 'not', label: 'NOT IN', hint: '生成 NOT IN (…)，分片时用 AND 连接' },
+        { id: 'in', label: 'IN' },
+        { id: 'not', label: 'NOT IN' },
       ],
       state.negate ? 'not' : 'in',
       (id) => {
@@ -173,10 +169,6 @@ export default {
         transform();
       }
     );
-
-    const encodingSeg = seg(ENCODINGS, state.encoding, (id) => {
-      state.encoding = id;
-    });
 
     const columnInput = h('input', {
       class: 'input',
@@ -194,10 +186,10 @@ export default {
     const chunkInput = h('input', {
       class: 'input input-inline',
       type: 'number',
-      min: '0',
-      step: '100',
+      // 不要 min/step：带上 step=100 时，输入 150 会被浏览器判成「无效值」并弹气泡。
+      // 取值范围由下面的 onInput 自己兜（<=0 视为不分片）
+      step: 'any',
       value: '0',
-      title: '每 N 个值分一组，0 表示不分片',
       onInput: (event) => {
         const next = parseInt(event.target.value, 10);
         state.chunkSize = Number.isFinite(next) && next > 0 ? next : 0;
@@ -292,12 +284,10 @@ export default {
     function syncUI() {
       setSegValue(modeSeg, state.mode);
       setSegValue(separatorSeg, state.separatorId);
-      customWrap.style.display = state.separatorId === 'custom' ? '' : 'none';
-      customWrap.querySelector('input').value = state.customSeparator;
+      setSegEditValue(separatorSeg, state.customSeparator);
       setSegValue(quoteSeg, state.quote);
       setSegValue(sortSeg, state.sort);
       setSegValue(negateSeg, state.negate ? 'not' : 'in');
-      setSegValue(encodingSeg, state.encoding);
       numericBox.checked = state.numericUnquoted;
       dedupeBox.checked = state.dedupe;
       columnInput.value = state.column;
@@ -316,7 +306,6 @@ export default {
 
         for (const key of [
           'mode',
-          'separatorId',
           'customSeparator',
           'quote',
           'numericUnquoted',
@@ -326,9 +315,13 @@ export default {
           'negate',
           'column',
           'chunkSize',
-          'encoding',
         ]) {
           if (saved[key] !== undefined) state[key] = saved[key];
+        }
+        // 旧配置里可能存着已经下线的分隔方式（如「分号」），校验后再用，
+        // 否则会出现「没有任何按钮被选中」的状态
+        if (SEPARATORS.some((item) => item.id === saved.separatorId)) {
+          state.separatorId = saved.separatorId;
         }
         if (typeof saved.input === 'string' && saved.input) input.value = saved.input;
 
@@ -357,36 +350,6 @@ export default {
         },
       },
       ['从剪贴板粘贴']
-    );
-
-    const importBtn = h(
-      'button',
-      {
-        class: 'btn btn-sm',
-        onClick: async () => {
-          const filePath = await api.pickFile({
-            title: '选择数据文件',
-            filters: [
-              { name: `文本 / SQL（${extensionList(IMPORT_EXTENSIONS)}）`, extensions: IMPORT_EXTENSIONS },
-            ],
-          });
-          if (!filePath) return;
-          const name = await api.basename(filePath);
-          if (!isAllowedFile(name, IMPORT_EXTENSIONS)) {
-            setStatus('err', `只能导入 ${extensionList(IMPORT_EXTENSIONS)} 文件，${name} 不支持`);
-            return;
-          }
-          try {
-            const text = await api.readText(filePath, { encoding: state.encoding });
-            input.value = text;
-            transform();
-            setStatus('ok', `已导入 ${name}`);
-          } catch (err) {
-            setStatus('err', `读取失败：${err.message}`);
-          }
-        },
-      },
-      ['导入文件']
     );
 
     const clearBtn = h(
@@ -438,8 +401,8 @@ export default {
     );
 
     // ------------------------------------------------------------ 组装
-    // 文件类操作（导入 / 保存）进顶栏；内容级操作（示例 / 清空）留在工具栏右侧
-    actions.append(importBtn, saveBtn);
+    // 保存结果这类文件操作放顶栏；内容级操作（示例 / 清空）留在工具栏右侧
+    actions.append(saveBtn);
 
     // 选项面板：分「输入解析 / 输出内容」两类，标签写具体（不再只写“格式/切分”），
     // 每个选项的详细含义放在 title 里，鼠标悬停可看
@@ -462,15 +425,8 @@ export default {
     const optionsCard = h('div', { class: 'card opt-panel' }, [
       h('div', { class: 'opt-group' }, [
         h('div', { class: 'opt-group-title' }, ['输入解析']),
+        // 「自定义」按钮点下去就在原位变成输入框，不需要额外的输入控件
         optRow(optItem('切分方式', [separatorSeg])),
-        // 自定义分隔符是独立的一组，窄屏时整组换行，不挤在同一行里
-        optRow(
-          optItem('文本编码', [
-            encodingSeg,
-            h('span', { class: 'opt-note' }, ['仅导入文件时生效']),
-          ]),
-          customWrap
-        ),
       ]),
       h('div', { class: 'opt-group' }, [
         h('div', { class: 'opt-group-title' }, ['输出内容']),
@@ -485,7 +441,7 @@ export default {
         ),
         optRow(
           optItem('值引号', [quoteSeg]),
-          optItem('值排序', [sortSeg], 'opt-label opt-label-sep')
+          optItem('排序', [sortSeg], 'opt-label opt-label-gap')
         ),
         directionRow,
       ]),
